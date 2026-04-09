@@ -401,32 +401,40 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
         session.paso_actual = "PEDIR_ORIGEN"
         
     elif paso == "PEDIR_ORIGEN":
-        session.datos_temporales["origen"] = text
+        datos = session.datos_temporales.copy() if hasattr(session.datos_temporales, 'copy') else {}
+        datos["origen"] = text
+        session.datos_temporales = datos
         response_msg = "¡Entendido! Ahora dime tu dirección de *destino final*:"
         session.paso_actual = "PEDIR_DESTINO"
         
     elif paso == "PEDIR_DESTINO":
-        session.datos_temporales["destino"] = text
+        datos = session.datos_temporales.copy() if hasattr(session.datos_temporales, 'copy') else {}
+        datos["destino"] = text
+        session.datos_temporales = datos
         response_msg = "Perfecto. Por último, dime la *fecha y hora programada* (ejemplo: 'Hoy a las 4pm' o '25 de Oct a las 08:00'):"
         session.paso_actual = "PEDIR_HORA"
         
     elif paso == "PEDIR_HORA":
-        session.datos_temporales["hora"] = text
-        origen = session.datos_temporales['origen']
-        destino = session.datos_temporales['destino']
-        hora = session.datos_temporales['hora']
+        datos = session.datos_temporales.copy() if hasattr(session.datos_temporales, 'copy') else {}
+        datos["hora"] = text
+        session.datos_temporales = datos
+        
+        origen = datos.get('origen', 'No especificado')
+        destino = datos.get('destino', 'No especificado')
+        hora = datos.get('hora', text)
         
         response_msg = f"Revisemos tu solicitud:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Fecha/Hora: {hora}\n\nResponde *SI* para confirmar o *CANCELAR* para abortar."
         session.paso_actual = "CONFIRMAR_SERVICIO"
         
     elif paso == "CONFIRMAR_SERVICIO":
-        if text.lower() in ["si", "sí", "s", "ok"]:
+        if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
+            datos = session.datos_temporales
             # Crear el servicio en estado PENDIENTE
             nuevo_servicio = models.Servicio(
                 usuario_id=usuario.id,
                 empresa_id=usuario.empresa_id,
-                direccion_origen=session.datos_temporales["origen"],
-                direccion_destino=session.datos_temporales["destino"],
+                direccion_origen=datos.get("origen", "Desconocido"),
+                direccion_destino=datos.get("destino", "Desconocido"),
                 hora_programada=datetime.now(), # TO DO: En un sistema real usaríamos IA/NLP (o dialogflow) para parsear el string de "hora" a datetime
                 estado="PENDIENTE"
             )
