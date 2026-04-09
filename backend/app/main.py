@@ -349,12 +349,26 @@ async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     if not phone or not text:
         return {"status": "ignored", "reason": "Mensaje sin texto o número telefónico"}
     
+    # Normalizar número de teléfono (asume Colombia como principal)
+    raw_phone = phone.replace("+", "")
+    local_phone = raw_phone[2:] if raw_phone.startswith("57") and len(raw_phone) == 12 else raw_phone
+    
     # Buscar usuario solicitante
-    usuario = db.query(models.Usuario).filter(models.Usuario.whatsapp == phone).first()
+    usuario = db.query(models.Usuario).filter(
+        (models.Usuario.whatsapp == raw_phone) | 
+        (models.Usuario.whatsapp == local_phone) |
+        (models.Usuario.whatsapp == f"57{local_phone}") |
+        (models.Usuario.whatsapp == f"+57{local_phone}")
+    ).first()
     
     if not usuario:
         # Si no es usuario, podría ser un supervisor respondiendo una autorización
-        supervisor = db.query(models.Supervisor).filter(models.Supervisor.whatsapp == phone).first()
+        supervisor = db.query(models.Supervisor).filter(
+            (models.Supervisor.whatsapp == raw_phone) | 
+            (models.Supervisor.whatsapp == local_phone) |
+            (models.Supervisor.whatsapp == f"57{local_phone}") |
+            (models.Supervisor.whatsapp == f"+57{local_phone}")
+        ).first()
         if supervisor:
             return handle_supervisor_message(supervisor, text, db)
             
