@@ -199,8 +199,8 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
     for e in empresas:
         # Supervisores
         supervisores = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == e.id).all()
-        # Usuarios (Empleados)
-        usuarios = db.query(models.Usuario).filter(models.Usuario.empresa_id == e.id).all()
+        # count users
+        usuarios_count = db.query(models.Usuario).filter(models.Usuario.empresa_id == e.id).count()
         
         result.append({
             "id": e.id,
@@ -213,12 +213,7 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
                 "nombre": s.nombre,
                 "whatsapp": s.whatsapp
             } for s in supervisores],
-            "usuarios": [{
-                "id": u.id,
-                "nombre": u.nombre,
-                "whatsapp": u.whatsapp,
-                "cargo": u.cargo
-            } for u in usuarios[:5]] # Solo devolvemos los primeros 5 en la vista general
+            "usuarios_count": usuarios_count
         })
     return result
 
