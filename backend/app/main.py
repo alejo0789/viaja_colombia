@@ -148,6 +148,50 @@ async def refresh_token_route(payload: dict, db: Session = Depends(get_db)):
     new_access_token = auth.create_access_token(token_payload)
     return {"accessToken": new_access_token}
 
+# --- ADMIN ROUTES ---
+
+@app.get("/api/admin/dashboard")
+async def get_admin_dashboard(db: Session = Depends(get_db)):
+    # En un sistema real, haríamos conteos reales en la BD
+    total_solicitudes = db.query(models.Servicio).count()
+    vehiculos_activos = db.query(models.Conductor).count() # O tabla vehiculos si existiera
+    conductores_activos = db.query(models.Conductor).count()
+    alertas_activas = db.query(models.LogAuditoria).filter(models.LogAuditoria.accion == "ALERTA").count()
+
+    return {
+        "totalSolicitudes": total_solicitudes,
+        "vehiculosActivos": vehiculos_activos,
+        "conductoresActivos": conductores_activos,
+        "alertasActivas": alertas_activas,
+        "stats": {
+            "completados": db.query(models.Servicio).filter(models.Servicio.estado == "COMPLETADO").count(),
+            "pendientes": db.query(models.Servicio).filter(models.Servicio.estado == "PENDIENTE").count(),
+            "cancelados": db.query(models.Servicio).filter(models.Servicio.estado == "CANCELADO").count()
+        }
+    }
+
+@app.get("/api/admin/solicitudes")
+async def get_admin_solicitudes(estado: str = None, db: Session = Depends(get_db)):
+    query = db.query(models.Servicio)
+    if estado:
+        query = query.filter(models.Servicio.estado == estado)
+    
+    solicitudes = query.order_by(models.Servicio.created_at.desc()).limit(50).all()
+    
+    # Formatear para el frontend
+    result = []
+    for s in solicitudes:
+        result.append({
+            "id": f"SOL-{s.id}",
+            "empleado_nombre": "Usuario WhatsApp", # Asumimos nombre genérico si no lo tenemos
+            "origen": s.direccion_origen,
+            "destino": s.direccion_destino,
+            "estado": s.estado,
+            "fecha": s.created_at.strftime("%Y-%m-%d %H:%M"),
+            "tipo_servicio": "Estándar"
+        })
+    return result
+
 # --- WEBHOOK ROUTES ---
 async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """
