@@ -192,6 +192,36 @@ async def get_admin_solicitudes(estado: str = None, db: Session = Depends(get_db
         })
     return result
 
+@app.get("/api/admin/empresas")
+async def get_admin_empresas(db: Session = Depends(get_db)):
+    empresas = db.query(models.Empresa).all()
+    result = []
+    for e in empresas:
+        # Supervisores
+        supervisores = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == e.id).all()
+        # Usuarios (Empleados)
+        usuarios = db.query(models.Usuario).filter(models.Usuario.empresa_id == e.id).all()
+        
+        result.append({
+            "id": e.id,
+            "nombre": e.nombre,
+            "nit": e.nit,
+            "telefono": e.telefono,
+            "email": e.email,
+            "supervisores": [{
+                "id": s.id,
+                "nombre": s.nombre,
+                "whatsapp": s.whatsapp
+            } for s in supervisores],
+            "usuarios": [{
+                "id": u.id,
+                "nombre": u.nombre,
+                "whatsapp": u.whatsapp,
+                "cargo": u.cargo
+            } for u in usuarios]
+        })
+    return result
+
 # --- WEBHOOK ROUTES ---
 async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """
