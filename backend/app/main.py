@@ -25,13 +25,39 @@ def read_root():
     return {"message": "Bienvenido a ViajaColombia Transporte API"}
 
 @app.post("/webhook/n8n")
-async def n8n_webhook(payload: schemas.WaWebhookPayload, db: Session = Depends(get_db)):
+async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """
-    Este endpoint recibe los mensajes de Meta reenviados a través de n8n.
+    Este endpoint recibe los datos en bruto de Meta (vía n8n).
     Responde con un JSON indicando a n8n qué hacer a continuación.
     """
-    phone = payload.phone_number
-    text = payload.message.strip()
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"error": "Invalid JSON"}
+
+    # n8n suele enviar listas con el trigger de WhatsApp
+    if isinstance(payload, list):
+        if not payload:
+            return {"status": "ignored"}
+        data = payload[0]
+    else:
+        data = payload
+        
+    messages = data.get("messages", [])
+    if not messages:
+        return {"status": "ignored", "reason": "No messages found (podría ser un cambio de estado)"}
+        
+    msg_data = messages[0]
+    phone = msg_data.get("from")
+    msg_type = msg_data.get("type")
+    
+    if msg_type == "text":
+        text = msg_data.get("text", {}).get("body", "").strip()
+    else:
+        text = "" # Podremos agregar soporte para botones acá luego
+        
+    if not phone or not text:
+        return {"status": "ignored", "reason": "Mensaje sin texto o número telefónico"}
     
     # Buscar usuario solicitante
     usuario = db.query(models.Usuario).filter(models.Usuario.whatsapp == phone).first()
