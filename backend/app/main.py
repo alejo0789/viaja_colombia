@@ -457,15 +457,21 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
                     f"📍 *Origen:* {nuevo_servicio.direccion_origen}\n"
                     f"🏁 *Destino:* {nuevo_servicio.direccion_destino}\n"
                     f"⏰ *Fecha/Hora:* {hora_str}\n\n"
-                    f"Para gestionar esta solicitud, por favor responde con la palabra clave y el número de ID:\n\n"
-                    f"✅ Escribe: *AUTORIZAR {nuevo_servicio.id}*\n"
-                    f"❌ Escribe: *RECHAZAR {nuevo_servicio.id}*"
+                    f"¿Deseas autorizar o rechazar esta solicitud?"
                 )
                 
                 # Devolvemos una instrucción en formato array a n8n para que procese automáticamente a 2 destinatarios
                 return [
                     {"action": "send_message", "phone": usuario.whatsapp, "message": "Tu solicitud ha sido enviada al supervisor para su autorización. Te notificaremos pronto."},
-                    {"action": "send_message", "phone": supervisor.whatsapp, "message": msg_supervisor}
+                    {
+                        "action": "send_interactive", 
+                        "phone": supervisor.whatsapp, 
+                        "message": msg_supervisor,
+                        "btn1_id": f"AUTORIZAR {nuevo_servicio.id}",
+                        "btn1_text": "✅ Autorizar",
+                        "btn2_id": f"RECHAZAR {nuevo_servicio.id}",
+                        "btn2_text": "❌ Rechazar"
+                    }
                 ]
             else:
                 response_msg = "Solicitud guardada en sistema, pero no encontramos supervisor asignado para esta empresa."
