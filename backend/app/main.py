@@ -449,7 +449,8 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             supervisor = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == usuario.empresa_id).first()
             if supervisor:
                 db.refresh(nuevo_servicio)
-                msg_supervisor = f"🔔 *Nuevo servicio solicitado*\nUsuario: {usuario.nombre}\n📍 Origen: {nuevo_servicio.direccion_origen}\n🏁 Destino: {nuevo_servicio.direccion_destino}\n\n¿Autoriza este servicio? Responda: *AUTORIZAR {nuevo_servicio.id}* o *RECHAZAR {nuevo_servicio.id}*"
+                hora_str = datos.get('hora', 'No especificado')
+                msg_supervisor = f"🔔 *Nuevo servicio solicitado*\nUsuario: {usuario.nombre}\n📍 Origen: {nuevo_servicio.direccion_origen}\n🏁 Destino: {nuevo_servicio.direccion_destino}\n⏰ Fecha/Hora: {hora_str}\n\n¿Autoriza este servicio? Responda: *AUTORIZAR {nuevo_servicio.id}* o *RECHAZAR {nuevo_servicio.id}*"
                 
                 # Devolvemos una instrucción en formato array a n8n para que procese automáticamente a 2 destinatarios
                 return [
