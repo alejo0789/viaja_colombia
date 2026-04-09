@@ -218,9 +218,31 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
                 "nombre": u.nombre,
                 "whatsapp": u.whatsapp,
                 "cargo": u.cargo
-            } for u in usuarios]
+            } for u in usuarios[:5]] # Solo devolvemos los primeros 5 en la vista general
         })
     return result
+
+@app.get("/api/admin/empresas/{id}/usuarios")
+async def get_company_users_paginated(
+    id: int, 
+    page: int = 1, 
+    search: str = "", 
+    size: int = 10,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Usuario).filter(models.Usuario.empresa_id == id)
+    if search:
+        query = query.filter(models.Usuario.nombre.ilike(f"%{search}%"))
+    
+    total = query.count()
+    users = query.offset((page - 1) * size).limit(size).all()
+    
+    return {
+        "usuarios": users,
+        "total": total,
+        "page": page,
+        "size": size
+    }
 
 @app.post("/api/admin/empresas")
 async def create_admin_empresa(data: dict, db: Session = Depends(get_db)):
