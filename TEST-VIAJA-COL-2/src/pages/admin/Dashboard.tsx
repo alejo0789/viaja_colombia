@@ -23,7 +23,7 @@ export default function Dashboard() {
   const [recentSolicitudes, setRecentSolicitudes] = useState<any[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [filterEmpresa, setFilterEmpresa] = useState('all');
-  const [filterMes, setFilterMes] = useState('');
+  const [filterMes, setFilterMes] = useState(new Date().toISOString().slice(0, 7));
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
 
@@ -245,8 +245,32 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Active Alerts */}
-        <div>
+        {/* Stats Column */}
+        <div className="space-y-6">
+          {/* Solicitudes por Empresa */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Solicitudes por Empresa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {stats?.solicitudesPorEmpresa && stats.solicitudesPorEmpresa.length > 0 ? (
+                  stats.solicitudesPorEmpresa.map((emp: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg bg-gray-50">
+                      <span className="font-medium text-gray-800 text-sm truncate max-w-[150px]">{emp.empresa}</span>
+                      <Badge variant="secondary" className="bg-[#1B3A5C] text-white">
+                        {emp.count} servicios
+                      </Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-6">No hay datos por el momento</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Active Alerts */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Alertas Activas</CardTitle>
@@ -287,29 +311,6 @@ export default function Dashboard() {
                   ))
                 ) : (
                   <p className="text-sm text-gray-500 text-center py-6">No hay alertas activas</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Solicitudes por Empresa */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Solicitudes por Empresa</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {stats?.solicitudesPorEmpresa && stats.solicitudesPorEmpresa.length > 0 ? (
-                  stats.solicitudesPorEmpresa.map((emp: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg bg-gray-50">
-                      <span className="font-medium text-gray-800 text-sm truncate max-w-[150px]">{emp.empresa}</span>
-                      <Badge variant="secondary" className="bg-[#1B3A5C] text-white">
-                        {emp.count} servicios
-                      </Badge>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-6">No hay datos por el momento</p>
                 )}
               </div>
             </CardContent>
