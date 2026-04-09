@@ -227,7 +227,8 @@ async def get_company_users_paginated(
 ):
     query = db.query(models.Usuario).filter(models.Usuario.empresa_id == id)
     if search:
-        query = query.filter(models.Usuario.nombre.ilike(f"%{search}%"))
+        search_term = f"%{search}%"
+        query = query.filter((models.Usuario.nombre.ilike(search_term)) | (models.Usuario.whatsapp.ilike(search_term)))
     
     total = query.count()
     users = query.offset((page - 1) * size).limit(size).all()
