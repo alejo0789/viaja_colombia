@@ -222,6 +222,45 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
         })
     return result
 
+@app.post("/api/admin/empresas")
+async def create_admin_empresa(data: dict, db: Session = Depends(get_db)):
+    new_empresa = models.Empresa(
+        nombre=data.get("nombre"),
+        nit=data.get("nit"),
+        telefono=data.get("telefono"),
+        email=data.get("email")
+    )
+    db.add(new_empresa)
+    db.commit()
+    db.refresh(new_empresa)
+    return new_empresa
+
+@app.post("/api/admin/supervisores")
+async def create_admin_supervisor(data: dict, db: Session = Depends(get_db)):
+    # Buscamos si ya existe por whatsapp
+    supervisor = models.Supervisor(
+        nombre=data.get("nombre"),
+        whatsapp=data.get("whatsapp"),
+        empresa_id=data.get("empresa_id")
+    )
+    db.add(supervisor)
+    db.commit()
+    db.refresh(supervisor)
+    return supervisor
+
+@app.post("/api/admin/usuarios")
+async def create_admin_usuario(data: dict, db: Session = Depends(get_db)):
+    usuario = models.Usuario(
+        nombre=data.get("nombre"),
+        whatsapp=data.get("whatsapp"),
+        cargo=data.get("cargo"),
+        empresa_id=data.get("empresa_id")
+    )
+    db.add(usuario)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
 # --- WEBHOOK ROUTES ---
 async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """

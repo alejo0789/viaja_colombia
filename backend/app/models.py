@@ -9,6 +9,7 @@ class Empresa(Base):
     nombre = Column(String, index=True)
     nit = Column(String, unique=True, index=True)
     telefono = Column(String)
+    email = Column(String, nullable=True)
     activa = Column(Boolean, default=True)
     
     supervisores = relationship("Supervisor", back_populates="empresa")
