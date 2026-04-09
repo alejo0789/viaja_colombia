@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi import FastAPI, Depends, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from . import models, schemas, database, auth
+from . import models, schemas, database, auth, whatsapp
 from .database import engine, get_db
 
 # Crear tablas si no existen
@@ -315,10 +315,10 @@ async def delete_admin_usuario(id: int, db: Session = Depends(get_db)):
 
 # --- WEBHOOK ROUTES ---
 @app.post("/webhook/n8n")
-async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
+async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Este endpoint recibe los datos en bruto de Meta (vía n8n).
-    Responde con un JSON indicando a n8n qué hacer a continuación.
+    Responde con un JSON status 200 y encola los mensajes de respuesta.
     """
     try:
         payload = await request.json()
@@ -341,10 +341,17 @@ async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     phone = msg_data.get("from")
     msg_type = msg_data.get("type")
     
+    # META API Interactive Buttons replies come as 'interactive' type
     if msg_type == "text":
         text = msg_data.get("text", {}).get("body", "").strip()
+    elif msg_type == "interactive":
+        interactive_data = msg_data.get("interactive", {})
+        if interactive_data.get("type") == "button_reply":
+            text = interactive_data.get("button_reply", {}).get("id", "").strip()
+        else:
+            text = ""
     else:
-        text = "" # Podremos agregar soporte para botones acá luego
+        text = "" 
         
     if not phone or not text:
         return {"status": "ignored", "reason": "Mensaje sin texto o número telefónico"}
@@ -370,11 +377,27 @@ async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
             (models.Supervisor.whatsapp == f"+57{local_phone}")
         ).first()
         if supervisor:
-            return handle_supervisor_message(supervisor, text, db)
-            
-        return {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema. Contacta al supervisor de tu empresa."}
+            result = handle_supervisor_message(supervisor, text, db)
+        else:
+            result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema. Contacta al supervisor de tu empresa."}
+    else:
+        result = handle_user_session(usuario, text, db)
+
+    # Procesar resultados encolando las tareas a la API de WhatsApp Graph
+    if isinstance(result, dict):
+        result = [result]
         
-    return handle_user_session(usuario, text, db)
+    for item in result:
+        if item.get("action") == "send_message":
+            background_tasks.add_task(whatsapp.send_whatsapp_text, item["phone"], item["message"])
+        elif item.get("action") == "send_interactive":
+            buttons = [
+                {"id": item["btn1_id"], "title": item["btn1_text"]},
+                {"id": item["btn2_id"], "title": item["btn2_text"]}
+            ]
+            background_tasks.add_task(whatsapp.send_whatsapp_interactive, item["phone"], item["message"], buttons)
+            
+    return {"status": "processed"}
 
 def handle_user_session(usuario: models.Usuario, text: str, db: Session):
     session = db.query(models.WaSession).filter(models.WaSession.whatsapp_number == usuario.whatsapp).first()
