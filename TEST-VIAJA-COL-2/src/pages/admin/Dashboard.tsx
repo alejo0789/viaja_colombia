@@ -35,14 +35,11 @@ export default function Dashboard() {
     // Initial fetch for dropdown companies
     const fetchEmpresas = async () => {
         try {
-            const data = await adminAPI.getDashboard(); // Fallback if API lacks route, but we added /api/admin/empresas in backend
-            // To be clean, backend has /api/admin/empresas
-            const response = await fetch('/api/admin/empresas');
-            if (response.ok) {
-                const emps = await response.json();
-                setEmpresas(emps);
-            }
-        } catch (e) {}
+            const data = await adminAPI.getEmpresas();
+            setEmpresas(data || []);
+        } catch (e) {
+            console.error('Error fetching empresas:', e);
+        }
     };
     fetchEmpresas();
   }, []);
