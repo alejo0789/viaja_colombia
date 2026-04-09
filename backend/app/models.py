@@ -35,6 +35,7 @@ class Usuario(Base):
     nombre = Column(String)
     whatsapp = Column(String, unique=True, index=True) # Phone with country code
     email = Column(String, nullable=True)
+    cargo = Column(String, nullable=True)
     activo = Column(Boolean, default=True)
     
     empresa = relationship("Empresa", back_populates="usuarios")
