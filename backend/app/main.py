@@ -261,6 +261,40 @@ async def create_admin_usuario(data: dict, db: Session = Depends(get_db)):
     db.refresh(usuario)
     return usuario
 
+@app.patch("/api/admin/supervisores/{id}")
+async def update_admin_supervisor(id: int, data: dict, db: Session = Depends(get_db)):
+    supervisor = db.query(models.Supervisor).filter(models.Supervisor.id == id).first()
+    if not supervisor:
+        raise HTTPException(status_code=404, detail="Supervisor no encontrado")
+    for key, value in data.items():
+        setattr(supervisor, key, value)
+    db.commit()
+    db.refresh(supervisor)
+    return supervisor
+
+@app.delete("/api/admin/supervisores/{id}")
+async def delete_admin_supervisor(id: int, db: Session = Depends(get_db)):
+    db.query(models.Supervisor).filter(models.Supervisor.id == id).delete()
+    db.commit()
+    return {"status": "deleted"}
+
+@app.patch("/api/admin/usuarios/{id}")
+async def update_admin_usuario(id: int, data: dict, db: Session = Depends(get_db)):
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    for key, value in data.items():
+        setattr(usuario, key, value)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+@app.delete("/api/admin/usuarios/{id}")
+async def delete_admin_usuario(id: int, db: Session = Depends(get_db)):
+    db.query(models.Usuario).filter(models.Usuario.id == id).delete()
+    db.commit()
+    return {"status": "deleted"}
+
 # --- WEBHOOK ROUTES ---
 async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """
