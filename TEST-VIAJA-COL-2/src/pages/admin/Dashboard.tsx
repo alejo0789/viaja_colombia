@@ -19,7 +19,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<any>(mockStats);
+  const [stats, setStats] = useState<any>({
+    totalSolicitudes: 0,
+    vehiculosActivos: 0,
+    conductoresActivos: 0,
+    alertasActivas: 0,
+    solicitudesPorEmpresa: []
+  });
   const [recentSolicitudes, setRecentSolicitudes] = useState<any[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [filterEmpresa, setFilterEmpresa] = useState('all');
@@ -27,9 +33,7 @@ export default function Dashboard() {
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
 
-  const [activeAlerts, setActiveAlerts] = useState(
-    mockAlertas.filter((alert) => !alert.leida).slice(0, 4)
-  );
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
 
   useEffect(() => {
     // Initial fetch for dropdown companies
