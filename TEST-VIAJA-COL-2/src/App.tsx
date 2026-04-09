@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 // Pages
 import Index from './pages/Index';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
 
 // Real Admin Pages
@@ -16,6 +17,7 @@ import AdminVehiculos from './pages/admin/Flota';
 import AdminTarifas from './pages/admin/Tarifas';
 import AdminAlertas from './pages/admin/Alertas';
 import GestionEmpresas from './pages/admin/GestionEmpresas';
+import MaestroUsuarios from './pages/admin/MaestroUsuarios';
 
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
@@ -69,6 +71,7 @@ export default function App() {
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Admin Routes */}
             <Route
@@ -84,6 +87,7 @@ export default function App() {
               <Route path="conductores" element={<AdminConductores />} />
               <Route path="vehiculos" element={<AdminVehiculos />} />
               <Route path="empresas" element={<GestionEmpresas />} />
+              <Route path="usuarios" element={<MaestroUsuarios />} />
               <Route path="tarifas" element={<AdminTarifas />} />
               <Route path="reportes" element={<AdminAlertas />} />
             </Route>

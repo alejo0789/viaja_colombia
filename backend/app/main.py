@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Depends, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from datetime import datetime
 import json
 import logging
+import secrets
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -148,6 +149,51 @@ async def refresh_token_route(payload: dict, db: Session = Depends(get_db)):
     new_access_token = auth.create_access_token(token_payload)
     return {"accessToken": new_access_token}
 
+@app.post("/api/auth/forgot-password")
+async def forgot_password(payload: dict, db: Session = Depends(get_db)):
+    email = payload.get("email", "").lower().strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido")
+    
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
+    if not user:
+        # Don't reveal if user exists or not for security, but in this case we'll just say ok
+        return {"message": "Si el email existe, se ha enviado un enlace de recuperación"}
+    
+    # Generate token
+    token = secrets.token_urlsafe(32)
+    user.reset_token = token
+    user.reset_token_expires = datetime.now() + timedelta(hours=1)
+    db.commit()
+    
+    # In a real app, send email here. For now, log it.
+    logger.info(f"RESET TOKEN for {email}: {token}")
+    
+    return {"message": "Si el email existe, se ha enviado un enlace de recuperación", "debug_token": token}
+
+@app.post("/api/auth/reset-password")
+async def reset_password(payload: dict, db: Session = Depends(get_db)):
+    token = payload.get("token")
+    new_password = payload.get("password")
+    
+    if not token or not new_password:
+        raise HTTPException(status_code=400, detail="Token y nueva contraseña requeridos")
+    
+    user = db.query(models.UsuarioDashboard).filter(
+        models.UsuarioDashboard.reset_token == token,
+        models.UsuarioDashboard.reset_token_expires > datetime.now()
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=400, detail="Token inválido o expirado")
+    
+    user.password_hash = auth.get_password_hash(new_password)
+    user.reset_token = None
+    user.reset_token_expires = None
+    db.commit()
+    
+    return {"message": "Contraseña actualizada exitosamente"}
+
 # --- ADMIN ROUTES ---
 
 @app.get("/api/admin/dashboard")
@@ -264,6 +310,71 @@ async def get_admin_solicitudes(estado: str = None, page: int = 1, size: int = 2
         "page": page,
         "size": size
     }
+
+    return result
+
+@app.get("/api/admin/usuarios-dashboard")
+async def get_dashboard_users(db: Session = Depends(get_db)):
+    users = db.query(models.UsuarioDashboard).all()
+    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR"}
+    return [{
+        "id": u.id,
+        "nombre": u.nombre,
+        "email": u.email,
+        "rol": role_map.get(u.rol, "ADMIN"),
+        "rol_id": u.rol,
+        "estado": u.estado,
+        "empresa_cliente_id": u.empresa_cliente_id,
+        "created_at": u.created_at
+    } for u in users]
+
+@app.post("/api/admin/usuarios-dashboard")
+async def create_dashboard_user(payload: dict, db: Session = Depends(get_db)):
+    email = payload.get("email", "").lower().strip()
+    if db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first():
+        throw_http_err(400, "El email ya está registrado")
+    
+    new_user = models.UsuarioDashboard(
+        email=email,
+        nombre=payload.get("nombre"),
+        password_hash=auth.get_password_hash(payload.get("password", "ViajaCol2024*")),
+        rol=payload.get("rol", 1),
+        estado="activo",
+        empresa_cliente_id=payload.get("empresa_cliente_id")
+    )
+    db.add(new_user)
+    db.commit()
+    return {"message": "Usuario creado exitosamente"}
+
+@app.patch("/api/admin/usuarios-dashboard/{user_id}")
+async def update_dashboard_user(user_id: int, payload: dict, db: Session = Depends(get_db)):
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == user_id).first()
+    if not user:
+        throw_http_err(404, "Usuario no encontrado")
+        
+    if "nombre" in payload: user.nombre = payload["nombre"]
+    if "email" in payload: user.email = payload["email"].lower().strip()
+    if "rol" in payload: user.rol = payload["rol"]
+    if "estado" in payload: user.estado = payload["estado"]
+    if "empresa_cliente_id" in payload: user.empresa_cliente_id = payload["empresa_cliente_id"]
+    if "password" in payload and payload["password"]:
+        user.password_hash = auth.get_password_hash(payload["password"])
+        
+    db.commit()
+    return {"message": "Usuario actualizado"}
+
+@app.delete("/api/admin/usuarios-dashboard/{user_id}")
+async def delete_dashboard_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == user_id).first()
+    if not user:
+        throw_http_err(404, "Usuario no encontrado")
+    db.delete(user)
+    db.commit()
+    return {"message": "Usuario eliminado"}
+
+def throw_http_err(code: int, detail: str):
+    from fastapi import HTTPException
+    raise HTTPException(status_code=code, detail=detail)
 
 @app.get("/api/admin/empresas")
 async def get_admin_empresas(db: Session = Depends(get_db)):

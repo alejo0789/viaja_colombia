@@ -145,6 +145,30 @@ export const adminAPI = {
     });
   },
 
+  getDashboardUsers: async () => {
+    return apiRequest('/api/admin/usuarios-dashboard');
+  },
+
+  createDashboardUser: async (data: any) => {
+    return apiRequest('/api/admin/usuarios-dashboard', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+  },
+
+  updateDashboardUser: async (id: number, data: any) => {
+    return apiRequest(`/api/admin/usuarios-dashboard/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+  },
+
+  deleteDashboardUser: async (id: number) => {
+    return apiRequest(`/api/admin/usuarios-dashboard/${id}`, {
+        method: 'DELETE',
+    });
+  },
+
   getRankingConductores: async (filtro?: { mes?: string; empresa?: string }) => {
     const params = new URLSearchParams();
     if (filtro?.mes) params.append('mes', filtro.mes);

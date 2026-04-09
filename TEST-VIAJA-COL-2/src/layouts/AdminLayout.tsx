@@ -56,6 +56,12 @@ export default function AdminLayout() {
           >
             Alertas
           </Link>
+          <Link
+            to="/admin/usuarios"
+            className="block px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+          >
+            Usuarios
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-gray-700">
