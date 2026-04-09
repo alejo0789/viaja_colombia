@@ -176,19 +176,28 @@ async def get_admin_solicitudes(estado: str = None, db: Session = Depends(get_db
     if estado:
         query = query.filter(models.Servicio.estado == estado)
     
-    solicitudes = query.order_by(models.Servicio.created_at.desc()).limit(50).all()
+    solicitudes = query.order_by(models.Servicio.created_at.desc()).limit(100).all()
     
-    # Formatear para el frontend
+    # Formatear para el frontend con datos reales de base de datos
     result = []
     for s in solicitudes:
+        empresa_nombre = s.empresa.nombre if s.empresa else "Empresa N/A"
+        empleado_nombre = s.usuario.nombre if s.usuario else "Desconocido"
+        
+        # Fecha en que fue creado el registro y hora a la que fue programado
+        fecha_creacion = s.created_at.strftime("%b %d, %I:%M %p") if s.created_at else "No disp."
+        
         result.append({
             "id": f"SOL-{s.id}",
-            "empleado_nombre": "Usuario WhatsApp", # Asumimos nombre genérico si no lo tenemos
+            "original_id": s.id,
+            "empresa": empresa_nombre,
+            "empleado": empleado_nombre,
             "origen": s.direccion_origen,
             "destino": s.direccion_destino,
             "estado": s.estado,
-            "fecha": s.created_at.strftime("%Y-%m-%d %H:%M"),
-            "tipo_servicio": "Estándar"
+            "fecha": fecha_creacion,
+            "hora_programada": str(s.hora_programada) if s.hora_programada else "Pronto",
+            "tipo_servicio": "Corporativo"
         })
     return result
 
