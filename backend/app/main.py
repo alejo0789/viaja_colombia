@@ -47,7 +47,7 @@ async def login(payload: dict, db: Session = Depends(get_db)):
         user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
     except Exception as e:
         logger.error(f"Database query error: {e}")
-        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
     
     if not user:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
@@ -58,9 +58,13 @@ async def login(payload: dict, db: Session = Depends(get_db)):
     if not auth.verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
+    # Convert rol integer to string for frontend
+    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR"}
+    role_str = role_map.get(user.rol, "ADMIN")
+
     token_payload = {
         "userId": str(user.id),
-        "rol": user.rol,
+        "rol": role_str,
         "empresaClienteId": user.empresa_cliente_id,
         "empresaTransportistaId": user.empresa_transportista_id,
     }
@@ -77,10 +81,10 @@ async def login(payload: dict, db: Session = Depends(get_db)):
         "accessToken": access_token,
         "refreshToken": refresh_token,
         "user": {
-            "id": user.id,
+            "id": str(user.id),
             "email": user.email,
             "nombre": user.nombre,
-            "rol": user.rol,
+            "rol": role_str,
             "empresaClienteId": user.empresa_cliente_id,
             "empresaTransportistaId": user.empresa_transportista_id,
         }
@@ -90,32 +94,29 @@ async def login(payload: dict, db: Session = Depends(get_db)):
 async def get_me(request: Request, db: Session = Depends(get_db)):
     auth_header = request.headers.get("Authorization")
     if not auth_header:
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Missing auth header")
     
     token = auth_header.replace("Bearer ", "")
     payload = auth.decode_token(token)
     if not payload:
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Invalid token")
     
     user_id = payload.get("userId")
     user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
     
     if not user:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR"}
         
     return {
-        "data": {
-            "id": user.id,
-            "email": user.email,
-            "nombre": user.nombre,
-            "rol": user.rol,
-            "empresa_cliente_id": user.empresa_cliente_id,
-            "empresa_transportista_id": user.empresa_transportista_id,
-            "created_at": user.created_at
-        }
+        "id": str(user.id),
+        "email": user.email,
+        "nombre": user.nombre,
+        "rol": role_map.get(user.rol, "ADMIN"),
+        "empresaClienteId": user.empresa_cliente_id,
+        "empresaTransportistaId": user.empresa_transportista_id,
+        "created_at": user.created_at
     }
 
 @app.post("/api/auth/refresh")
