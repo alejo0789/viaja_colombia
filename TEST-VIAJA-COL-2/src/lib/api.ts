@@ -73,10 +73,9 @@ export async function apiRequest(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({
-      error: 'Error de red',
-    }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    const errorBody = await response.json().catch(() => ({}));
+    const message = errorBody.detail || errorBody.error || errorBody.message || `Error ${response.status}`;
+    throw new Error(message);
   }
 
   return response.json();

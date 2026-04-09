@@ -26,7 +26,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<User>;
   signOut: () => void;
   isAdmin: boolean;
   isConductor: boolean;
@@ -71,6 +71,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const { accessToken, refreshToken, user: userData } = response;
         setTokens(accessToken, refreshToken);
         setUser(userData);
+        return userData;
       } catch (error) {
         clearTokens();
         setUser(null);
