@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import json
 
-from . import models, schemas, database
+from . import models, schemas, database, auth
 from .database import engine, get_db
 
 # Crear tablas si no existen
@@ -24,7 +24,121 @@ app.add_middleware(
 def read_root():
     return {"message": "Bienvenido a ViajaColombia Transporte API"}
 
-@app.post("/webhook/n8n")
+# --- AUTH ROUTES ---
+
+@app.post("/api/auth/login")
+async def login(payload: dict, db: Session = Depends(get_db)):
+    email = payload.get("email", "").lower().strip()
+    password = payload.get("password", "")
+
+    if not email or not password:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Email y contraseña requeridos")
+
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
+    
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+
+    if user.estado != "activo":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Usuario inactivo. Contacta al administrador.")
+
+    if not auth.verify_password(password, user.password_hash):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+
+    token_payload = {
+        "userId": str(user.id),
+        "rol": user.rol,
+        "empresaClienteId": user.empresa_cliente_id,
+        "empresaTransportistaId": user.empresa_transportista_id,
+    }
+
+    access_token = auth.create_access_token(token_payload)
+    refresh_token = auth.create_refresh_token({"userId": str(user.id)})
+
+    # Audit log
+    new_log = models.LogAuditoria(usuario_id=user.id, accion="LOGIN", tabla_afectada="usuarios")
+    db.add(new_log)
+    db.commit()
+
+    return {
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "nombre": user.nombre,
+            "rol": user.rol,
+            "empresaClienteId": user.empresa_cliente_id,
+            "empresaTransportistaId": user.empresa_transportista_id,
+        }
+    }
+
+@app.get("/api/auth/me")
+async def get_me(request: Request, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Missing auth header")
+    
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    if not payload:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    user_id = payload.get("userId")
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
+    
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    return {
+        "data": {
+            "id": user.id,
+            "email": user.email,
+            "nombre": user.nombre,
+            "rol": user.rol,
+            "empresa_cliente_id": user.empresa_cliente_id,
+            "empresa_transportista_id": user.empresa_transportista_id,
+            "created_at": user.created_at
+        }
+    }
+
+@app.post("/api/auth/refresh")
+async def refresh_token_route(payload: dict, db: Session = Depends(get_db)):
+    refresh_token = payload.get("refreshToken")
+    if not refresh_token:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Refresh token requerido")
+    
+    decoded = auth.decode_token(refresh_token)
+    if not decoded:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Refresh token inválido o expirado")
+    
+    user_id = decoded.get("userId")
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
+    
+    if not user or user.estado != "activo":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Usuario no válido")
+
+    token_payload = {
+        "userId": str(user.id),
+        "rol": user.rol,
+        "empresaClienteId": user.empresa_cliente_id,
+        "empresaTransportistaId": user.empresa_transportista_id,
+    }
+    
+    new_access_token = auth.create_access_token(token_payload)
+    return {"accessToken": new_access_token}
+
+# --- WEBHOOK ROUTES ---
 async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Este endpoint recibe los datos en bruto de Meta (vía n8n).

@@ -84,3 +84,24 @@ class WaSession(Base):
     paso_actual = Column(String, default="INICIO")
     datos_temporales = Column(JSON, default={})
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class LogAuditoria(Base):
+    __tablename__ = "log_auditoria"
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, index=True)
+    accion = Column(String)
+    tabla_afectada = Column(String)
+    fecha = Column(DateTime(timezone=True), server_default=func.now())
+
+class UsuarioDashboard(Base):
+    __tablename__ = "usuarios"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    password_hash = Column(String)
+    nombre = Column(String)
+    rol = Column(Integer) # 1: admin, 2: conductor, 4: autorizador
+    estado = Column(String, default="activo")
+    empresa_cliente_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    empresa_transportista_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
