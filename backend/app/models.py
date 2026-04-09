@@ -1,0 +1,86 @@
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, JSON
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+from .database import Base
+
+class Empresa(Base):
+    __tablename__ = "companies"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String, index=True)
+    nit = Column(String, unique=True, index=True)
+    telefono = Column(String)
+    activa = Column(Boolean, default=True)
+    
+    supervisores = relationship("Supervisor", back_populates="empresa")
+    usuarios = relationship("Usuario", back_populates="empresa")
+    servicios = relationship("Servicio", back_populates="empresa")
+
+class Supervisor(Base):
+    __tablename__ = "supervisors"
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("companies.id"))
+    nombre = Column(String)
+    whatsapp = Column(String, unique=True, index=True) # Phone with country code
+    email = Column(String, nullable=True)
+    activo = Column(Boolean, default=True)
+    
+    empresa = relationship("Empresa", back_populates="supervisores")
+    servicios_autorizados = relationship("Servicio", back_populates="supervisor")
+
+class Usuario(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("companies.id"))
+    nombre = Column(String)
+    whatsapp = Column(String, unique=True, index=True) # Phone with country code
+    email = Column(String, nullable=True)
+    activo = Column(Boolean, default=True)
+    
+    empresa = relationship("Empresa", back_populates="usuarios")
+    servicios = relationship("Servicio", back_populates="usuario")
+
+class Conductor(Base):
+    __tablename__ = "drivers"
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String)
+    telefono = Column(String, unique=True)
+    vehiculo = Column(String)
+    placa = Column(String, unique=True)
+    disponible = Column(Boolean, default=True)
+    en_servicio = Column(Boolean, default=False)
+    horario_disponibilidad = Column(JSON, nullable=True)
+    
+    servicios_asignados = relationship("Servicio", back_populates="conductor")
+
+class Servicio(Base):
+    __tablename__ = "services"
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("users.id"))
+    empresa_id = Column(Integer, ForeignKey("companies.id"))
+    supervisor_id = Column(Integer, ForeignKey("supervisors.id"), nullable=True)
+    conductor_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    
+    direccion_origen = Column(String)
+    direccion_destino = Column(String)
+    hora_programada = Column(DateTime)
+    
+    estado = Column(String, default="PENDIENTE") # PENDIENTE, AUTORIZADO, RECHAZADO, ASIGNADO, EN_CURSO, COMPLETADO, CANCELADO
+    
+    encuesta_calificacion = Column(Integer, nullable=True)
+    encuesta_comentario = Column(String, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    usuario = relationship("Usuario", back_populates="servicios")
+    empresa = relationship("Empresa", back_populates="servicios")
+    supervisor = relationship("Supervisor", back_populates="servicios_autorizados")
+    conductor = relationship("Conductor", back_populates="servicios_asignados")
+
+class WaSession(Base):
+    __tablename__ = "wa_sessions"
+    id = Column(Integer, primary_key=True, index=True)
+    whatsapp_number = Column(String, unique=True, index=True)
+    paso_actual = Column(String, default="INICIO")
+    datos_temporales = Column(JSON, default={})
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
