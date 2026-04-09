@@ -151,20 +151,68 @@ async def refresh_token_route(payload: dict, db: Session = Depends(get_db)):
 # --- ADMIN ROUTES ---
 
 @app.get("/api/admin/dashboard")
-async def get_admin_dashboard(db: Session = Depends(get_db)):
-    # En un sistema real, haríamos conteos reales en la BD
-    total_solicitudes = db.query(models.Servicio).count()
-    vehiculos_activos = db.query(models.Conductor).count() # O tabla vehiculos si existiera
+async def get_admin_dashboard(
+    empresa: str = None,
+    mes: str = None,
+    desde: str = None,
+    hasta: str = None,
+    db: Session = Depends(get_db)):
+
+    from sqlalchemy import func, extract
+    from datetime import datetime
+    
+    # Condicion base para todos los querys de servicios
+    filters = []
+    
+    if empresa and empresa != "all":
+        filters.append(models.Empresa.nombre == empresa)
+        
+    if mes and mes != "all":
+        try:
+            year, month = map(int, mes.split("-"))
+            filters.append(extract('year', models.Servicio.created_at) == year)
+            filters.append(extract('month', models.Servicio.created_at) == month)
+        except ValueError:
+            pass
+            
+    if desde:
+        try:
+            filters.append(models.Servicio.created_at >= datetime.strptime(desde, "%Y-%m-%d"))
+        except:
+            pass
+    
+    if hasta:
+        try:
+            hasta_date = datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            filters.append(models.Servicio.created_at <= hasta_date)
+        except:
+            pass
+
+    q_servicios = db.query(models.Servicio)
+    if filters:
+        q_servicios = q_servicios.join(models.Empresa, isouter=True).filter(*filters)
+        
+    total_solicitudes = q_servicios.count()
+
+    vehiculos_activos = db.query(models.Conductor).count()
     conductores_activos = db.query(models.Conductor).count()
     alertas_activas = db.query(models.LogAuditoria).filter(models.LogAuditoria.accion == "ALERTA").count()
 
-    from sqlalchemy import func
-    # Solicitudes agrupadas por empresa para el dashboard
-    sol_emp_raw = db.query(models.Empresa.nombre, func.count(models.Servicio.id)).join(
+    q_agrupadas = db.query(models.Empresa.nombre, func.count(models.Servicio.id)).join(
         models.Servicio, models.Empresa.id == models.Servicio.empresa_id
-    ).group_by(models.Empresa.nombre).order_by(func.count(models.Servicio.id).desc()).limit(10).all()
+    )
     
+    # We must apply the time/empresa filters to grouped query as well
+    if filters:
+        q_agrupadas = q_agrupadas.filter(*filters)
+        
+    sol_emp_raw = q_agrupadas.group_by(models.Empresa.nombre).order_by(func.count(models.Servicio.id).desc()).limit(10).all()
     solicitudes_por_empresa = [{"empresa": r[0], "count": r[1]} for r in sol_emp_raw]
+
+    # Filters for status (also applying base filters so it matches active time window)
+    q_status = db.query(models.Servicio)
+    if filters:
+        q_status = q_status.join(models.Empresa, isouter=True).filter(*filters)
 
     return {
         "totalSolicitudes": total_solicitudes,
@@ -172,9 +220,9 @@ async def get_admin_dashboard(db: Session = Depends(get_db)):
         "conductoresActivos": conductores_activos,
         "alertasActivas": alertas_activas,
         "stats": {
-            "completados": db.query(models.Servicio).filter(models.Servicio.estado == "COMPLETADO").count(),
-            "pendientes": db.query(models.Servicio).filter(models.Servicio.estado == "PENDIENTE").count(),
-            "cancelados": db.query(models.Servicio).filter(models.Servicio.estado == "CANCELADO").count()
+            "completados": q_status.filter(models.Servicio.estado == "COMPLETADO").count(),
+            "pendientes": q_status.filter(models.Servicio.estado == "PENDIENTE").count(),
+            "cancelados": q_status.filter(models.Servicio.estado == "CANCELADO").count()
         },
         "solicitudesPorEmpresa": solicitudes_por_empresa
     }

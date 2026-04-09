@@ -8,8 +8,19 @@ export const adminAPI = {
     return apiRequest('/api/admin/dashboard');
   },
 
-  getStats: async () => {
-    return apiRequest('/api/admin/dashboard');
+  getStats: async (filters?: {
+    empresa?: string;
+    mes?: string;
+    desde?: string;
+    hasta?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (filters?.empresa) params.append('empresa', filters.empresa);
+    if (filters?.mes) params.append('mes', filters.mes);
+    if (filters?.desde) params.append('desde', filters.desde);
+    if (filters?.hasta) params.append('hasta', filters.hasta);
+    const query = params.toString();
+    return apiRequest(`/api/admin/dashboard${query ? '?' + query : ''}`);
   },
 
   getSolicitudes: async (filters?: {

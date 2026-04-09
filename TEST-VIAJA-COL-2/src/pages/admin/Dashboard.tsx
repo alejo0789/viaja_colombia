@@ -7,26 +7,58 @@ import {
   TrendingUp,
   Clock,
   MapPin,
+  FilterX,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StatusBadge from '@/components/admin/StatusBadge';
 import { adminAPI } from '@/services/api';
 import { mockSolicitudes, mockAlertas, mockStats } from '@/data/mockData';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(mockStats);
   const [recentSolicitudes, setRecentSolicitudes] = useState<any[]>([]);
+  const [empresas, setEmpresas] = useState<any[]>([]);
+  const [filterEmpresa, setFilterEmpresa] = useState('all');
+  const [filterMes, setFilterMes] = useState('');
+  const [filterDesde, setFilterDesde] = useState('');
+  const [filterHasta, setFilterHasta] = useState('');
+
   const [activeAlerts, setActiveAlerts] = useState(
     mockAlertas.filter((alert) => !alert.leida).slice(0, 4)
   );
 
   useEffect(() => {
+    // Initial fetch for dropdown companies
+    const fetchEmpresas = async () => {
+        try {
+            const data = await adminAPI.getDashboard(); // Fallback if API lacks route, but we added /api/admin/empresas in backend
+            // To be clean, backend has /api/admin/empresas
+            const response = await fetch('/api/admin/empresas');
+            if (response.ok) {
+                const emps = await response.json();
+                setEmpresas(emps);
+            }
+        } catch (e) {}
+    };
+    fetchEmpresas();
+  }, []);
+
+  useEffect(() => {
     const fetchData = async () => {
       try {
+        const queryParams = {
+            empresa: filterEmpresa !== 'all' ? filterEmpresa : undefined,
+            mes: filterMes || undefined,
+            desde: filterDesde || undefined,
+            hasta: filterHasta || undefined,
+        };
         const [statsData, solicitudesData] = await Promise.all([
-          adminAPI.getStats(),
-          adminAPI.getSolicitudes()
+          adminAPI.getStats(queryParams),
+          adminAPI.getSolicitudes(queryParams)
         ]);
         setStats(statsData);
         setRecentSolicitudes((solicitudesData.data || []).slice(0, 5));
@@ -35,7 +67,7 @@ export default function Dashboard() {
       }
     };
     fetchData();
-  }, []);
+  }, [filterEmpresa, filterMes, filterDesde, filterHasta]);
 
   const statCards = [
     {
@@ -75,6 +107,80 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold text-[#1B3A5C]">Dashboard</h1>
         <p className="text-gray-600 mt-2">Bienvenido al panel de control administrativo</p>
       </div>
+
+      {/* Filters Toolbar */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex gap-4 flex-wrap items-end">
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs text-gray-500 mb-1 block">Empresa</label>
+              <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas las empresas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las empresas</SelectItem>
+                  {empresas.map(emp => (
+                    <SelectItem key={emp.id} value={emp.nombre}>{emp.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="w-[180px]">
+              <label className="text-xs text-gray-500 mb-1 block">Filtrar por Mes</label>
+              <Input 
+                type="month" 
+                value={filterMes} 
+                onChange={(e) => {
+                    setFilterMes(e.target.value);
+                    if (e.target.value) {
+                        setFilterDesde('');
+                        setFilterHasta('');
+                    }
+                }} 
+              />
+            </div>
+
+            <div className="w-[160px]">
+              <label className="text-xs text-gray-500 mb-1 block">Desde (Fecha)</label>
+              <Input 
+                type="date" 
+                value={filterDesde} 
+                onChange={(e) => {
+                    setFilterDesde(e.target.value);
+                    if (e.target.value) setFilterMes('');
+                }} 
+              />
+            </div>
+
+            <div className="w-[160px]">
+              <label className="text-xs text-gray-500 mb-1 block">Hasta (Fecha)</label>
+              <Input 
+                type="date" 
+                value={filterHasta} 
+                onChange={(e) => {
+                    setFilterHasta(e.target.value);
+                    if (e.target.value) setFilterMes('');
+                }} 
+              />
+            </div>
+
+            <Button 
+                variant="outline" 
+                onClick={() => {
+                    setFilterEmpresa('all');
+                    setFilterMes('');
+                    setFilterDesde('');
+                    setFilterHasta('');
+                }}
+            >
+                <FilterX size={16} className="mr-2" />
+                Limpiar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
