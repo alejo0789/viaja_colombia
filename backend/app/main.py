@@ -158,6 +158,14 @@ async def get_admin_dashboard(db: Session = Depends(get_db)):
     conductores_activos = db.query(models.Conductor).count()
     alertas_activas = db.query(models.LogAuditoria).filter(models.LogAuditoria.accion == "ALERTA").count()
 
+    from sqlalchemy import func
+    # Solicitudes agrupadas por empresa para el dashboard
+    sol_emp_raw = db.query(models.Empresa.nombre, func.count(models.Servicio.id)).join(
+        models.Servicio, models.Empresa.id == models.Servicio.empresa_id
+    ).group_by(models.Empresa.nombre).order_by(func.count(models.Servicio.id).desc()).limit(10).all()
+    
+    solicitudes_por_empresa = [{"empresa": r[0], "count": r[1]} for r in sol_emp_raw]
+
     return {
         "totalSolicitudes": total_solicitudes,
         "vehiculosActivos": vehiculos_activos,
@@ -167,16 +175,18 @@ async def get_admin_dashboard(db: Session = Depends(get_db)):
             "completados": db.query(models.Servicio).filter(models.Servicio.estado == "COMPLETADO").count(),
             "pendientes": db.query(models.Servicio).filter(models.Servicio.estado == "PENDIENTE").count(),
             "cancelados": db.query(models.Servicio).filter(models.Servicio.estado == "CANCELADO").count()
-        }
+        },
+        "solicitudesPorEmpresa": solicitudes_por_empresa
     }
 
 @app.get("/api/admin/solicitudes")
-async def get_admin_solicitudes(estado: str = None, db: Session = Depends(get_db)):
+async def get_admin_solicitudes(estado: str = None, page: int = 1, size: int = 20, db: Session = Depends(get_db)):
     query = db.query(models.Servicio)
     if estado:
         query = query.filter(models.Servicio.estado == estado)
     
-    solicitudes = query.order_by(models.Servicio.created_at.desc()).limit(100).all()
+    total = query.count()
+    solicitudes = query.order_by(models.Servicio.created_at.desc()).offset((page - 1) * size).limit(size).all()
     
     # Formatear para el frontend con datos reales de base de datos
     result = []
@@ -199,7 +209,13 @@ async def get_admin_solicitudes(estado: str = None, db: Session = Depends(get_db
             "hora_programada": str(s.hora_programada) if s.hora_programada else "Pronto",
             "tipo_servicio": "Corporativo"
         })
-    return result
+        
+    return {
+        "data": result,
+        "total": total,
+        "page": page,
+        "size": size
+    }
 
 @app.get("/api/admin/empresas")
 async def get_admin_empresas(db: Session = Depends(get_db)):

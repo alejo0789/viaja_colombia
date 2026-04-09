@@ -16,11 +16,15 @@ export const adminAPI = {
     estado?: string;
     desde?: string;
     hasta?: string;
+    page?: number;
+    size?: number;
   }) => {
     const params = new URLSearchParams();
     if (filters?.estado) params.append('estado', filters.estado);
     if (filters?.desde) params.append('desde', filters.desde);
     if (filters?.hasta) params.append('hasta', filters.hasta);
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.size) params.append('size', filters.size.toString());
     const query = params.toString();
     return apiRequest(
       `/api/admin/solicitudes${query ? '?' + query : ''}`

@@ -38,6 +38,8 @@ export default function Solicitudes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('all');
   const [filterEmpresa, setFilterEmpresa] = useState('all');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedSolicitud, setSelectedSolicitud] = useState<any>(null);
   const [selectedConductor, setSelectedConductor] = useState('');
@@ -46,14 +48,18 @@ export default function Solicitudes() {
   useEffect(() => {
     const fetchSolicitudes = async () => {
       try {
-        const data = await adminAPI.getSolicitudes();
-        setSolicitudes(data);
+        const responseData = await adminAPI.getSolicitudes({ page, size: 20 });
+        setSolicitudes(responseData.data || []);
+        
+        if (responseData.total) {
+          setTotalPages(Math.ceil(responseData.total / 20));
+        }
       } catch (error) {
         console.error('Error fetching solicitudes:', error);
       }
     };
     fetchSolicitudes();
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     let filtered = solicitudes;
@@ -273,6 +279,31 @@ export default function Solicitudes() {
           </Table>
         </CardContent>
       </Card>
+      
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between mt-4">
+        <p className="text-sm text-gray-500">
+          Mostrando página {page} de {totalPages}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Anterior
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Siguiente
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

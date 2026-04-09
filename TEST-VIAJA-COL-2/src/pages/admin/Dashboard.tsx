@@ -15,7 +15,7 @@ import { adminAPI } from '@/services/api';
 import { mockSolicitudes, mockAlertas, mockStats } from '@/data/mockData';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState(mockStats);
+  const [stats, setStats] = useState<any>(mockStats);
   const [recentSolicitudes, setRecentSolicitudes] = useState<any[]>([]);
   const [activeAlerts, setActiveAlerts] = useState(
     mockAlertas.filter((alert) => !alert.leida).slice(0, 4)
@@ -29,7 +29,7 @@ export default function Dashboard() {
           adminAPI.getSolicitudes()
         ]);
         setStats(statsData);
-        setRecentSolicitudes(solicitudesData.slice(0, 5));
+        setRecentSolicitudes((solicitudesData.data || []).slice(0, 5));
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       }
@@ -184,6 +184,29 @@ export default function Dashboard() {
                   ))
                 ) : (
                   <p className="text-sm text-gray-500 text-center py-6">No hay alertas activas</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Solicitudes por Empresa */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Solicitudes por Empresa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {stats?.solicitudesPorEmpresa && stats.solicitudesPorEmpresa.length > 0 ? (
+                  stats.solicitudesPorEmpresa.map((emp: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg bg-gray-50">
+                      <span className="font-medium text-gray-800 text-sm truncate max-w-[150px]">{emp.empresa}</span>
+                      <Badge variant="secondary" className="bg-[#1B3A5C] text-white">
+                        {emp.count} servicios
+                      </Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-6">No hay datos por el momento</p>
                 )}
               </div>
             </CardContent>
