@@ -1,14 +1,23 @@
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from . import models, schemas, database, auth
 from .database import engine, get_db
 
 # Crear tablas si no existen
-models.Base.metadata.create_all(bind=engine)
+try:
+    models.Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created or already exist.")
+except Exception as e:
+    logger.error(f"Error creating database tables: {e}")
 
 app = FastAPI(title="ViajaColombia API", description="API para servicio de transporte B2B vía WhatsApp")
 
@@ -32,21 +41,21 @@ async def login(payload: dict, db: Session = Depends(get_db)):
     password = payload.get("password", "")
 
     if not email or not password:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Email y contraseña requeridos")
 
-    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
+    try:
+        user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
+    except Exception as e:
+        logger.error(f"Database query error: {e}")
+        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
     
     if not user:
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
     if user.estado != "activo":
-        from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Usuario inactivo. Contacta al administrador.")
 
     if not auth.verify_password(password, user.password_hash):
-        from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
     token_payload = {
