@@ -450,7 +450,17 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             if supervisor:
                 db.refresh(nuevo_servicio)
                 hora_str = datos.get('hora', 'No especificado')
-                msg_supervisor = f"🔔 *Nuevo servicio solicitado*\nUsuario: {usuario.nombre}\n📍 Origen: {nuevo_servicio.direccion_origen}\n🏁 Destino: {nuevo_servicio.direccion_destino}\n⏰ Fecha/Hora: {hora_str}\n\n¿Autoriza este servicio? Responda: *AUTORIZAR {nuevo_servicio.id}* o *RECHAZAR {nuevo_servicio.id}*"
+                msg_supervisor = (
+                    f"🛎️ *NUEVA SOLICITUD DE TRANSPORTE*\n"
+                    f"📌 *ID del Servicio:* #{nuevo_servicio.id}\n\n"
+                    f"👤 *Empleado:* {usuario.nombre}\n"
+                    f"📍 *Origen:* {nuevo_servicio.direccion_origen}\n"
+                    f"🏁 *Destino:* {nuevo_servicio.direccion_destino}\n"
+                    f"⏰ *Fecha/Hora:* {hora_str}\n\n"
+                    f"Para gestionar esta solicitud, por favor responde con la palabra clave y el número de ID:\n\n"
+                    f"✅ Escribe: *AUTORIZAR {nuevo_servicio.id}*\n"
+                    f"❌ Escribe: *RECHAZAR {nuevo_servicio.id}*"
+                )
                 
                 # Devolvemos una instrucción en formato array a n8n para que procese automáticamente a 2 destinatarios
                 return [
