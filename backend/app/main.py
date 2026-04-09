@@ -360,28 +360,34 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
     raw_phone = phone.replace("+", "")
     local_phone = raw_phone[2:] if raw_phone.startswith("57") and len(raw_phone) == 12 else raw_phone
     
-    # Buscar usuario solicitante
+    # Determinar si es comando de supervisor
+    text_up = text.upper()
+    is_supervisor_cmd = text_up.startswith("AUTORIZAR ") or text_up.startswith("RECHAZAR ")
+    
+    supervisor = db.query(models.Supervisor).filter(
+        (models.Supervisor.whatsapp == raw_phone) | 
+        (models.Supervisor.whatsapp == local_phone) |
+        (models.Supervisor.whatsapp == f"57{local_phone}") |
+        (models.Supervisor.whatsapp == f"+57{local_phone}")
+    ).first()
+
     usuario = db.query(models.Usuario).filter(
         (models.Usuario.whatsapp == raw_phone) | 
         (models.Usuario.whatsapp == local_phone) |
         (models.Usuario.whatsapp == f"57{local_phone}") |
         (models.Usuario.whatsapp == f"+57{local_phone}")
     ).first()
-    
-    if not usuario:
-        # Si no es usuario, podría ser un supervisor respondiendo una autorización
-        supervisor = db.query(models.Supervisor).filter(
-            (models.Supervisor.whatsapp == raw_phone) | 
-            (models.Supervisor.whatsapp == local_phone) |
-            (models.Supervisor.whatsapp == f"57{local_phone}") |
-            (models.Supervisor.whatsapp == f"+57{local_phone}")
-        ).first()
-        if supervisor:
-            result = handle_supervisor_message(supervisor, text, db)
-        else:
-            result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema. Contacta al supervisor de tu empresa."}
-    else:
+
+    # Enrutamiento Inteligente
+    if is_supervisor_cmd and supervisor:
+        result = handle_supervisor_message(supervisor, text, db)
+    elif usuario:
+        # Si no es un comando de supervisor pero está registrado como empleado, le iniciamos el flujo de empleado (pedir viaje)
         result = handle_user_session(usuario, text, db)
+    elif supervisor:
+        result = {"action": "send_message", "phone": phone, "message": "Eres supervisor pero no estás registrado como empleado. Pide que te agreguen como Empleado para poder pedir transporte."}
+    else:
+        result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema."}
 
     # Procesar resultados encolando las tareas a la API de WhatsApp Graph
     if isinstance(result, dict):
@@ -528,12 +534,10 @@ def handle_supervisor_message(supervisor: models.Supervisor, text: str, db: Sess
             # Notificar al usuario que su servicio fue autorizado
             usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
             
-            return {
-                "action": "notify_multi",
-                "supervisor_msg": {"phone": supervisor.whatsapp, "message": f"Servicio {servicio_id} AUTORIZADO ✅. El administrador de ViajaColombia ha sido notificado."},
-                "user_msg": {"phone": usuario.whatsapp, "message": "🎉 ¡Tu servicio ha sido autorizado por el supervisor! Pronto asignaremos un conductor."},
-                # Podríamos también notificar al administrador aquí mismo si hay un número de admin
-            }
+            return [
+                {"action": "send_message", "phone": supervisor.whatsapp, "message": f"Servicio #{servicio_id} AUTORIZADO ✅."},
+                {"action": "send_message", "phone": usuario.whatsapp, "message": "🎉 ¡Tu servicio ha sido autorizado por el supervisor! Pronto asignaremos un conductor."}
+            ]
         except IndexError:
             return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Formato incorrecto. Usa: AUTORIZAR [numero]"}
             
@@ -552,11 +556,10 @@ def handle_supervisor_message(supervisor: models.Supervisor, text: str, db: Sess
             
             usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
             
-            return {
-                "action": "notify_multi",
-                "supervisor_msg": {"phone": supervisor.whatsapp, "message": f"Servicio {servicio_id} RECHAZADO ❌."},
-                "user_msg": {"phone": usuario.whatsapp, "message": "Lo sentimos, tu solicitud de servicio no fue autorizada por el supervisor."}
-            }
+            return [
+                {"action": "send_message", "phone": supervisor.whatsapp, "message": f"Servicio #{servicio_id} RECHAZADO ❌."},
+                {"action": "send_message", "phone": usuario.whatsapp, "message": "Lo sentimos, tu solicitud de servicio no fue autorizada por el supervisor."}
+            ]
         except IndexError:
             return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Formato incorrecto. Usa: RECHAZAR [numero]"}
         
