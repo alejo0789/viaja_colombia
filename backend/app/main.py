@@ -296,6 +296,7 @@ async def delete_admin_usuario(id: int, db: Session = Depends(get_db)):
     return {"status": "deleted"}
 
 # --- WEBHOOK ROUTES ---
+@app.post("/webhook/n8n")
 async def n8n_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Este endpoint recibe los datos en bruto de Meta (vía n8n).
