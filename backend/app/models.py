@@ -60,8 +60,8 @@ class Conductor(Base):
     nombre = Column(String)
     telefono = Column(String, unique=True)
     whatsapp = Column(String, nullable=True)  # Número WhatsApp con código de país
-    vehiculo = Column(String)
-    placa = Column(String, unique=True)
+    vehiculo = Column(String, nullable=True)
+    placa = Column(String, nullable=True)
     disponible = Column(Boolean, default=True)
     en_servicio = Column(Boolean, default=False)
     horario_disponibilidad = Column(JSON, nullable=True)

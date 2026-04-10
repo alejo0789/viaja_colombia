@@ -16,7 +16,11 @@ import {
   Pencil,
   Search,
   ExternalLink,
-  ChevronLeft
+  ChevronLeft,
+  Power,
+  CheckCircle2,
+  XCircle,
+  Ban
 } from 'lucide-react';
 import { adminAPI } from '@/services/api';
 import {
@@ -209,6 +213,24 @@ export default function GestionEmpresas() {
       console.error('Error deleting member:', error);
     }
   };
+  const handleToggleStatus = async (type: 'SUPERVISOR' | 'USUARIO', member: any) => {
+    try {
+      const newStatus = !member.activo;
+      if (type === 'SUPERVISOR') {
+        await adminAPI.updateSupervisor(member.id, { activo: newStatus });
+      } else {
+        await adminAPI.updateUsuario(member.id, { activo: newStatus });
+      }
+      
+      // Actualizar vista local
+      if (type === 'USUARIO') {
+        setBulkUsers(prev => prev.map(u => u.id === member.id ? { ...u, activo: newStatus } : u));
+      }
+      fetchEmpresas(); // Recargar todas por si acaso (para contadores)
+    } catch (error) {
+      console.error('Error toggling status:', error);
+    }
+  };
 
   const toggleExpand = (id: number) => {
     setExpandedId(expandedId === id ? null : id);
@@ -300,7 +322,21 @@ export default function GestionEmpresas() {
                             <p className="text-sm text-gray-500">WhatsApp: {s.whatsapp}</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Supervisor</Badge>
+                            {s.activo ? (
+                              <Badge className="bg-green-100 text-green-700 border-green-200">Activo</Badge>
+                            ) : (
+                              <Badge className="bg-gray-100 text-gray-500 border-gray-200">Inactivo</Badge>
+                            )}
+                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200">Supervisor</Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className={`h-8 w-8 transition-opacity ${s.activo ? 'text-green-600' : 'text-gray-400'}`}
+                              onClick={(e) => { e.stopPropagation(); handleToggleStatus('SUPERVISOR', s); }}
+                              title={s.activo ? "Desactivar" : "Activar"}
+                            >
+                              <Power size={14} />
+                            </Button>
                             <Button 
                               variant="ghost" 
                               size="icon" 
@@ -436,7 +472,21 @@ export default function GestionEmpresas() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 w-full sm:w-auto justify-end">
+                                <div className="flex gap-2 w-full sm:w-auto justify-end items-center">
+                                    {u.activo ? (
+                                      <Badge className="bg-green-100 text-green-700 border-green-200">Activo</Badge>
+                                    ) : (
+                                      <Badge className="bg-gray-100 text-gray-500 border-gray-200">Inactivo</Badge>
+                                    )}
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className={`h-9 w-9 transition-colors rounded-lg ${u.activo ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                      onClick={() => handleToggleStatus('USUARIO', u)}
+                                      title={u.activo ? "Desactivar empleado" : "Activar empleado"}
+                                    >
+                                      <Power size={18} />
+                                    </Button>
                                     <Button 
                                       variant="ghost" 
                                       size="sm" 

@@ -974,22 +974,19 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
         destino = current_datos.get('destino', 'No especificado')
         hora = current_datos.get('hora', text)
         
-        response_msg = f"DEBUG-V3 | Revisemos:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Hora: {hora}\n\nResponde *SI* o *CANCELAR*."
+        response_msg = f"Revisemos tu solicitud:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Fecha/Hora: {hora}\n\nResponde *SI* para confirmar o *CANCELAR* para abortar."
         
     elif paso == "CONFIRMAR_SERVICIO":
         if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
             datos_finales = dict(session.datos_temporales or {})
             
-            # Crear el servicio con un prefijo para identificarlo en la DB
-            valor_hora = datos_finales.get("hora", "Pronto")
-            print(f"DEBUG-V3: Guardando hora -> {valor_hora}")
-            
+            # Crear el servicio
             nuevo_servicio = models.Servicio(
                 usuario_id=usuario.id,
                 empresa_id=usuario.empresa_id,
                 direccion_origen=datos_finales.get("origen", "Desconocido"),
                 direccion_destino=datos_finales.get("destino", "Desconocido"),
-                hora_programada=f"TEXTO: {valor_hora}",
+                hora_programada=datos_finales.get("hora", "Pronto"),
                 estado="PENDIENTE"
             )
             db.add(nuevo_servicio)
@@ -1004,8 +1001,7 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             supervisor = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == usuario.empresa_id).first()
             if supervisor:
                 db.refresh(nuevo_servicio)
-                hora_str = datos.get('hora', 'No especificado')
-                msg_supervisor = (
+                hora_str = datos_finales.get('hora', 'No especificado')
                     f"🛎️ *NUEVA SOLICITUD DE TRANSPORTE*\n"
                     f"📌 *ID del Servicio:* #{nuevo_servicio.id}\n\n"
                     f"👤 *Empleado:* {usuario.nombre}\n"
