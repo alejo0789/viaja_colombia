@@ -933,7 +933,8 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
                 whatsapp.send_whatsapp_template, 
                 item["phone"], 
                 item["template_name"], 
-                item["components"]
+                item["components"],
+                item.get("language", "es")
             )
             
     return {"status": "processed"}
@@ -1058,7 +1059,8 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
                         "action": "send_template", 
                         "phone": supervisor.whatsapp, 
                         "template_name": "autorizacion_supervisor",
-                        "components": components
+                        "components": components,
+                        "language": "es_CO"
                     }
                 ]
             else:
