@@ -1002,6 +1002,7 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             if supervisor:
                 db.refresh(nuevo_servicio)
                 hora_str = datos_finales.get('hora', 'No especificado')
+                msg_supervisor = (
                     f"🛎️ *NUEVA SOLICITUD DE TRANSPORTE*\n"
                     f"📌 *ID del Servicio:* #{nuevo_servicio.id}\n\n"
                     f"👤 *Empleado:* {usuario.nombre}\n"
