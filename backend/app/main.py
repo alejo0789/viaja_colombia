@@ -876,6 +876,8 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
             text = interactive_data.get("button_reply", {}).get("id", "").strip()
         else:
             text = ""
+    elif msg_type == "button":
+        text = msg_data.get("button", {}).get("payload", "").strip()
     else:
         text = "" 
         
