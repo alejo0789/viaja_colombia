@@ -1183,7 +1183,7 @@ async def get_autorizador_stats(request: Request, desde: str = None, hasta: str 
             "total_servicios": total,
             "servicios_finalizados": finalizados,
             "servicios_autorizados": autorizados,
-            "servicios_rechazados rechazados": rechazados,
+            "servicios_rechazados": rechazados,
             "servicios_pendientes": pendientes,
             "costo_total": 0,
             "duracion_promedio_min": 0,

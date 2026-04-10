@@ -14,14 +14,14 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Check, X, Clock, MapPin, User, Calendar } from 'lucide-react';
 
-const estadoBadge: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pendiente_autorizacion: { label: 'Pendiente', variant: 'secondary' },
-  autorizada: { label: 'Autorizada', variant: 'default' },
-  rechazada: { label: 'Rechazada', variant: 'destructive' },
-  asignada: { label: 'Asignada', variant: 'default' },
-  en_curso: { label: 'En Curso', variant: 'default' },
-  finalizada: { label: 'Finalizada', variant: 'outline' },
-  cancelada: { label: 'Cancelada', variant: 'destructive' },
+const estadoBadge: Record<string, { label: string; className: string }> = {
+  pendiente_autorizacion: { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+  autorizada: { label: 'Autorizada', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+  rechazada: { label: 'Rechazada', className: 'bg-red-100 text-red-700 border-red-200' },
+  asignada: { label: 'Asignada', className: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  en_curso: { label: 'En Curso', className: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
+  finalizada: { label: 'Finalizada', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  cancelada: { label: 'Cancelada', className: 'bg-gray-100 text-gray-700 border-gray-200' },
 };
 
 const AutorizadorSolicitudes = () => {
@@ -92,7 +92,7 @@ const AutorizadorSolicitudes = () => {
       ) : (
         <div className="grid gap-4">
           {solicitudes.map((sol: any) => {
-            const badge = estadoBadge[sol.estado] || { label: sol.estado, variant: 'outline' as const };
+            const badge = estadoBadge[sol.estado] || { label: sol.estado, className: 'bg-gray-50 text-gray-500' };
             const isPendiente = sol.estado === 'pendiente_autorizacion';
 
             return (
@@ -102,7 +102,7 @@ const AutorizadorSolicitudes = () => {
                     <CardTitle className="text-base">
                       Solicitud #{sol.numero_solicitud}
                     </CardTitle>
-                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                    <Badge variant="outline" className={badge.className}>{badge.label}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
