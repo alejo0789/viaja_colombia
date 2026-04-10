@@ -29,16 +29,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import StatusBadge from '@/components/admin/StatusBadge';
 import { adminAPI } from '@/services/api';
 
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRealtimeSolicitudes } from '@/hooks/useRealtimeSolicitudes';
+
 export default function Solicitudes() {
-  const [solicitudes, setSolicitudes] = useState<any[]>([]);
-  const [conductores, setConductores] = useState<any[]>([]);
-  const [vehiculos, setVehiculos] = useState<any[]>([]);
-  const [filteredSolicitudes, setFilteredSolicitudes] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEstado, setFilterEstado] = useState('all');
   const [filterEmpresa, setFilterEmpresa] = useState('all');
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [selectedSolicitud, setSelectedSolicitud] = useState<any>(null);
@@ -47,46 +46,33 @@ export default function Solicitudes() {
   const [assignmentResult, setAssignmentResult] = useState<any>(null);
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Cargar solicitudes desde el backend
-  useEffect(() => {
-    const fetchSolicitudes = async () => {
-      try {
-        const responseData = await adminAPI.getSolicitudes({ page, size: 20 });
-        setSolicitudes(responseData.data || []);
-        if (responseData.total) {
-          setTotalPages(Math.ceil(responseData.total / 20));
-        }
-      } catch (error) {
-        console.error('Error fetching solicitudes:', error);
-      }
-    };
-    fetchSolicitudes();
-  }, [page]);
+  // Hook de tiempo real (refresca cada 10s)
+  useRealtimeSolicitudes(['admin-solicitudes']);
 
-  // Cargar conductores y vehículos reales desde el backend
-  useEffect(() => {
-    const fetchConductores = async () => {
-      try {
-        const data = await adminAPI.getConductores();
-        setConductores(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Error fetching conductores:', error);
-      }
-    };
-    const fetchVehiculos = async () => {
-      try {
-        const data = await adminAPI.getVehiculos();
-        setVehiculos(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Error fetching vehiculos:', error);
-      }
-    };
-    fetchConductores();
-    fetchVehiculos();
-  }, []);
+  // Cargar solicitudes con React Query
+  const { data: solicitudesData, isLoading: isLoadingSolicitudes } = useQuery({
+    queryKey: ['admin-solicitudes', page],
+    queryFn: () => adminAPI.getSolicitudes({ page, size: 20 }),
+  });
 
-  // Filtrado local
-  useEffect(() => {
+  const solicitudes = solicitudesData?.data || [];
+  const totalPages = Math.ceil((solicitudesData?.total || 0) / 20);
+
+  // Cargar maestros
+  const { data: conductoresData } = useQuery({
+    queryKey: ['admin-conductores-list'],
+    queryFn: () => adminAPI.getConductores(),
+  });
+  const conductores = Array.isArray(conductoresData) ? conductoresData : [];
+
+  const { data: vehiculosData } = useQuery({
+    queryKey: ['admin-vehiculos-list'],
+    queryFn: () => adminAPI.getVehiculos(),
+  });
+  const vehiculos = Array.isArray(vehiculosData) ? vehiculosData : [];
+
+  // Filtrado local usando useMemo (más eficiente)
+  const filteredSolicitudes = React.useMemo(() => {
     let filtered = solicitudes;
 
     if (filterEstado !== 'all') {
@@ -100,15 +86,16 @@ export default function Solicitudes() {
     }
 
     if (searchTerm) {
+      const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (s) =>
-          (s.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.empleado || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.empresa || '').toLowerCase().includes(searchTerm.toLowerCase())
+          String(s.id || '').toLowerCase().includes(search) ||
+          String(s.empleado || '').toLowerCase().includes(search) ||
+          String(s.empresa || '').toLowerCase().includes(search)
       );
     }
 
-    setFilteredSolicitudes(filtered);
+    return filtered;
   }, [solicitudes, searchTerm, filterEstado, filterEmpresa]);
 
   const uniqueEmpresas = Array.from(new Set(solicitudes.map((s) => s.empresa))).filter(Boolean);
@@ -127,14 +114,7 @@ export default function Solicitudes() {
         veh?.placa || '',
       );
 
-      setSolicitudes(
-        solicitudes.map((s) =>
-          (s.original_id ?? s.id) === solicitudRealId
-            ? { ...s, estado: 'ASIGNADO' }
-            : s
-        )
-      );
-
+      queryClient.invalidateQueries({ queryKey: ['admin-solicitudes'] });
       setAssignmentResult(result);
       setIsAssignDialogOpen(false);
       setIsSuccessDialogOpen(true);
@@ -224,36 +204,50 @@ export default function Solicitudes() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSolicitudes.map((solicitud) => (
-                <TableRow key={solicitud.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <TableCell className="font-semibold">{solicitud.id}</TableCell>
-                  <TableCell className="font-medium text-blue-800">{solicitud.empresa || 'N/A'}</TableCell>
-                  <TableCell>{solicitud.empleado || solicitud.empleado_nombre}</TableCell>
-                  <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.origen}</TableCell>
-                  <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.destino}</TableCell>
-                  <TableCell className="text-sm font-semibold text-[#1B3A5C] whitespace-nowrap">
-                    {solicitud.hora_programada || <span className="text-gray-400 italic">Por confirmar</span>}
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-500">{solicitud.fecha}</TableCell>
-                  <TableCell>
-                    <StatusBadge estado={solicitud.estado} />
-                  </TableCell>
-                  <TableCell>
-                    {(solicitud.estado === 'AUTORIZADO' ||
-                      solicitud.estado === 'autorizada' ||
-                      solicitud.estado === 'PENDIENTE') && (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="bg-[#F97316] hover:bg-orange-600"
-                        onClick={() => openAssignDialog(solicitud)}
-                      >
-                        Asignar
-                      </Button>
-                    )}
+              {isLoadingSolicitudes ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-10 text-gray-400">
+                    Cargando solicitudes...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredSolicitudes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-10 text-gray-400">
+                    No hay solicitudes registradas
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredSolicitudes.map((solicitud) => (
+                  <TableRow key={solicitud.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <TableCell className="font-semibold">{solicitud.id}</TableCell>
+                    <TableCell className="font-medium text-blue-800">{solicitud.empresa || 'N/A'}</TableCell>
+                    <TableCell>{solicitud.empleado || solicitud.empleado_nombre}</TableCell>
+                    <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.origen}</TableCell>
+                    <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.destino}</TableCell>
+                    <TableCell className="text-sm font-semibold text-[#1B3A5C] whitespace-nowrap">
+                      {solicitud.hora_programada || <span className="text-gray-400 italic">Por confirmar</span>}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500">{solicitud.fecha}</TableCell>
+                    <TableCell>
+                      <StatusBadge estado={solicitud.estado} />
+                    </TableCell>
+                    <TableCell>
+                      {(solicitud.estado === 'AUTORIZADO' ||
+                        solicitud.estado === 'autorizada' ||
+                        solicitud.estado === 'PENDIENTE') && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="bg-[#F97316] hover:bg-orange-600"
+                          onClick={() => openAssignDialog(solicitud)}
+                        >
+                          Asignar
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

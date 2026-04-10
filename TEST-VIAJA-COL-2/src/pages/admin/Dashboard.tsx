@@ -18,57 +18,53 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
+import { useQuery } from '@tanstack/react-query';
+import { useRealtimeSolicitudes } from '@/hooks/useRealtimeSolicitudes';
+
 export default function Dashboard() {
-  const [stats, setStats] = useState<any>({
+  const [filterEmpresa, setFilterEmpresa] = useState('all');
+  const [filterMes, setFilterMes] = useState(new Date().toISOString().slice(0, 7));
+  const [filterDesde, setFilterDesde] = useState('');
+  const [filterHasta, setFilterHasta] = useState('');
+  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
+
+  // Tiempo real cada 10s
+  useRealtimeSolicitudes(['admin-stats', 'admin-solicitudes-recent', 'admin-empresas']);
+
+  // Cargar Empresas para el filtro
+  const { data: empresasData } = useQuery({
+    queryKey: ['admin-empresas'],
+    queryFn: () => adminAPI.getEmpresas(),
+  });
+  const empresas = empresasData || [];
+
+  // Parámetros de filtro
+  const queryParams = {
+    empresa: filterEmpresa !== 'all' ? filterEmpresa : undefined,
+    mes: filterMes || undefined,
+    desde: filterDesde || undefined,
+    hasta: filterHasta || undefined,
+  };
+
+  // Cargar Estadísticas
+  const { data: statsData, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['admin-stats', filterEmpresa, filterMes, filterDesde, filterHasta],
+    queryFn: () => adminAPI.getStats(queryParams),
+  });
+  const stats = statsData || {
     totalSolicitudes: 0,
     vehiculosActivos: 0,
     conductoresActivos: 0,
     alertasActivas: 0,
     solicitudesPorEmpresa: []
+  };
+
+  // Cargar Solicitudes Recientes
+  const { data: solicitudesData } = useQuery({
+    queryKey: ['admin-solicitudes-recent', filterEmpresa, filterMes, filterDesde, filterHasta],
+    queryFn: () => adminAPI.getSolicitudes(queryParams),
   });
-  const [recentSolicitudes, setRecentSolicitudes] = useState<any[]>([]);
-  const [empresas, setEmpresas] = useState<any[]>([]);
-  const [filterEmpresa, setFilterEmpresa] = useState('all');
-  const [filterMes, setFilterMes] = useState(new Date().toISOString().slice(0, 7));
-  const [filterDesde, setFilterDesde] = useState('');
-  const [filterHasta, setFilterHasta] = useState('');
-
-  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
-
-  useEffect(() => {
-    // Initial fetch for dropdown companies
-    const fetchEmpresas = async () => {
-        try {
-            const data = await adminAPI.getEmpresas();
-            setEmpresas(data || []);
-        } catch (e) {
-            console.error('Error fetching empresas:', e);
-        }
-    };
-    fetchEmpresas();
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const queryParams = {
-            empresa: filterEmpresa !== 'all' ? filterEmpresa : undefined,
-            mes: filterMes || undefined,
-            desde: filterDesde || undefined,
-            hasta: filterHasta || undefined,
-        };
-        const [statsData, solicitudesData] = await Promise.all([
-          adminAPI.getStats(queryParams),
-          adminAPI.getSolicitudes(queryParams)
-        ]);
-        setStats(statsData);
-        setRecentSolicitudes((solicitudesData.data || []).slice(0, 5));
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      }
-    };
-    fetchData();
-  }, [filterEmpresa, filterMes, filterDesde, filterHasta]);
+  const recentSolicitudes = (solicitudesData?.data || []).slice(0, 5);
 
   const statCards = [
     {
