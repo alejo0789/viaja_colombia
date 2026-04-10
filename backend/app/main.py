@@ -358,7 +358,15 @@ async def get_admin_solicitudes(request: Request, estado: str = None, page: int 
 
 @app.get("/api/admin/usuarios-dashboard")
 async def get_dashboard_users(db: Session = Depends(get_db)):
-    users = db.query(models.UsuarioDashboard).all()
+    # Hacemos un join con Empresa para traer el nombre
+    results = db.query(
+        models.UsuarioDashboard,
+        models.Empresa.nombre.label("empresa_nombre")
+    ).outerjoin(
+        models.Empresa, 
+        models.UsuarioDashboard.empresa_cliente_id == models.Empresa.id
+    ).all()
+    
     role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR"}
     return [{
         "id": u.id,
@@ -368,8 +376,9 @@ async def get_dashboard_users(db: Session = Depends(get_db)):
         "rol_id": u.rol,
         "estado": u.estado,
         "empresa_cliente_id": u.empresa_cliente_id,
+        "empresa_nombre": empresa_nombre or "Viaja Colombia",
         "created_at": u.created_at
-    } for u in users]
+    } for u, empresa_nombre in results]
 
 @app.post("/api/admin/usuarios-dashboard")
 async def create_dashboard_user(payload: dict, db: Session = Depends(get_db)):
@@ -810,8 +819,26 @@ async def update_admin_supervisor(id: int, data: dict, db: Session = Depends(get
     supervisor = db.query(models.Supervisor).filter(models.Supervisor.id == id).first()
     if not supervisor:
         raise HTTPException(status_code=404, detail="Supervisor no encontrado")
+    
+    old_email = supervisor.email
+    
+    # Actualizar campos del Supervisor
     for key, value in data.items():
-        setattr(supervisor, key, value)
+        if key != "password": # El modelo Supervisor no tiene password
+            setattr(supervisor, key, value)
+    
+    # Sincronizar con el Usuario del Dashboard si existe
+    if old_email:
+        dashboard_user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == old_email).first()
+        if dashboard_user:
+            dashboard_user.nombre = supervisor.nombre
+            dashboard_user.email = supervisor.email
+            dashboard_user.empresa_cliente_id = supervisor.empresa_id
+            
+            # Si se envió una nueva contraseña, actualizarla
+            if "password" in data and data["password"]:
+                dashboard_user.password_hash = auth.get_password_hash(data["password"])
+    
     db.commit()
     db.refresh(supervisor)
     return supervisor
