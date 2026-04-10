@@ -27,12 +27,6 @@ export default function AutorizadorLayout() {
             Solicitudes por Autorizar
           </a>
           <a
-            href="/autorizador/estadisticas"
-            className="block px-4 py-2 rounded-lg hover:bg-green-800 transition"
-          >
-            Estadísticas
-          </a>
-          <a
             href="/autorizador/empleados"
             className="block px-4 py-2 rounded-lg hover:bg-green-800 transition"
           >

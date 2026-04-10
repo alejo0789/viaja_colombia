@@ -19,6 +19,11 @@ import AdminAlertas from './pages/admin/Alertas';
 import GestionEmpresas from './pages/admin/GestionEmpresas';
 import MaestroUsuarios from './pages/admin/MaestroUsuarios';
 
+// Real Autorizador Pages
+import AutorizadorDashboard from './pages/autorizador/AutorizadorDashboard';
+import AutorizadorSolicitudes from './pages/autorizador/AutorizadorSolicitudes';
+import AutorizadorEmpleados from './pages/autorizador/AutorizadorEmpleados';
+
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
 import ConductorLayout from './layouts/ConductorLayout';
@@ -38,22 +43,6 @@ function ConductorHistorial() {
 
 function ConductorPerfil() {
   return <div className="text-2xl font-bold">Perfil de Conductor</div>;
-}
-
-function AutorizadorDashboard() {
-  return <div className="text-2xl font-bold">Dashboard Autorizador</div>;
-}
-
-function AutorizadorSolicitudes() {
-  return <div className="text-2xl font-bold">Solicitudes por Autorizar</div>;
-}
-
-function AutorizadorEstadisticas() {
-  return <div className="text-2xl font-bold">Estadísticas</div>;
-}
-
-function AutorizadorEmpleados() {
-  return <div className="text-2xl font-bold">Gestión de Empleados</div>;
 }
 
 function AutorizadorPerfil() {
@@ -118,7 +107,6 @@ export default function App() {
             >
               <Route path="dashboard" element={<AutorizadorDashboard />} />
               <Route path="solicitudes" element={<AutorizadorSolicitudes />} />
-              <Route path="estadisticas" element={<AutorizadorEstadisticas />} />
               <Route path="empleados" element={<AutorizadorEmpleados />} />
               <Route path="perfil" element={<AutorizadorPerfil />} />
             </Route>

@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Depends, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, extract
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 import json
 import logging
 import secrets
@@ -198,6 +200,7 @@ async def reset_password(payload: dict, db: Session = Depends(get_db)):
 
 @app.get("/api/admin/dashboard")
 async def get_admin_dashboard(
+    request: Request,
     empresa: str = None,
     mes: str = None,
     desde: str = None,
@@ -207,10 +210,27 @@ async def get_admin_dashboard(
     from sqlalchemy import func, extract
     from datetime import datetime
     
-    # Condicion base para todos los querys de servicios
+    # Multi-tenant filtering based on user role
+    auth_header = request.headers.get("Authorization")
+    user_id = None
+    user_empresa_id = None
+    is_admin = True
+
+    if auth_header:
+        token = auth_header.replace("Bearer ", "")
+        payload = auth.decode_token(token)
+        if payload:
+            role_str = payload.get("rol")
+            user_empresa_id = payload.get("empresaClienteId")
+            is_admin = role_str == "ADMIN"
+
+    # Base filters for all queries
     filters = []
     
-    if empresa and empresa != "all":
+    # If not admin, FORCE filter by their company
+    if not is_admin and user_empresa_id:
+        filters.append(models.Servicio.empresa_id == user_empresa_id)
+    elif empresa and empresa != "all":
         filters.append(models.Empresa.nombre == empresa)
         
     if mes and mes != "all":
@@ -236,10 +256,16 @@ async def get_admin_dashboard(
 
     q_servicios = db.query(models.Servicio)
     if filters:
-        q_servicios = q_servicios.join(models.Empresa, isouter=True).filter(*filters)
+        # Check if we need to join Empresa (only if filtering by company name)
+        # Note: in Python SQLAlchemy, we check binary expressions
+        try:
+            q_servicios = q_servicios.join(models.Empresa, isouter=True).filter(*filters)
+        except:
+            q_servicios = q_servicios.filter(*filters)
         
     total_solicitudes = q_servicios.count()
 
+    # Drivers and alerts (Admins see all, Supervisors might see only relevant but for now keeping them general or filtering if needed)
     vehiculos_activos = db.query(models.Conductor).count()
     conductores_activos = db.query(models.Conductor).count()
     alertas_activas = db.query(models.LogAuditoria).filter(models.LogAuditoria.accion == "ALERTA").count()
@@ -274,8 +300,25 @@ async def get_admin_dashboard(
     }
 
 @app.get("/api/admin/solicitudes")
-async def get_admin_solicitudes(estado: str = None, page: int = 1, size: int = 20, db: Session = Depends(get_db)):
+async def get_admin_solicitudes(request: Request, estado: str = None, page: int = 1, size: int = 20, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    user_empresa_id = None
+    is_admin = True
+
+    if auth_header:
+        token = auth_header.replace("Bearer ", "")
+        payload = auth.decode_token(token)
+        if payload:
+            role_str = payload.get("rol")
+            user_empresa_id = payload.get("empresaClienteId")
+            is_admin = role_str == "ADMIN"
+
     query = db.query(models.Servicio)
+    
+    # Force filter if not admin
+    if not is_admin and user_empresa_id:
+        query = query.filter(models.Servicio.empresa_id == user_empresa_id)
+        
     if estado:
         query = query.filter(models.Servicio.estado == estado)
     
@@ -300,7 +343,7 @@ async def get_admin_solicitudes(estado: str = None, page: int = 1, size: int = 2
             "destino": s.direccion_destino,
             "estado": s.estado,
             "fecha": fecha_creacion,
-            "hora_programada": str(s.hora_programada) if s.hora_programada else "Pronto",
+            "hora_programada": s.hora_programada or "Por confirmar",
             "tipo_servicio": "Corporativo"
         })
         
@@ -376,6 +419,265 @@ def throw_http_err(code: int, detail: str):
     from fastapi import HTTPException
     raise HTTPException(status_code=code, detail=detail)
 
+# ---------------------------------------------------------------------------
+# CONDUCTORES (admin)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/admin/conductores")
+async def get_conductores(db: Session = Depends(get_db)):
+    """Retorna todos los conductores registrados con información básica de vehículo."""
+    conductores = db.query(models.Conductor).all()
+    return [
+        {
+            "id": c.id,
+            "nombre": c.nombre,
+            "telefono": c.telefono,
+            "whatsapp": c.whatsapp,
+            "vehiculo": c.vehiculo,
+            "placa": c.placa,
+            "disponible": c.disponible,
+            "en_servicio": c.en_servicio,
+        }
+        for c in conductores
+    ]
+
+@app.post("/api/admin/conductores")
+async def create_conductor(data: dict, db: Session = Depends(get_db)):
+    """Crea un nuevo conductor en la base de datos."""
+    telefono = data.get("telefono", "")
+    # Guardar el whatsapp normalizado con codigo de pais para envios directos
+    whatsapp_raw = data.get("whatsapp") or telefono
+    whatsapp_normalizado = normalizar_telefono_co(whatsapp_raw)
+    conductor = models.Conductor(
+        nombre=data.get("nombre"),
+        telefono=telefono,
+        whatsapp=whatsapp_normalizado,
+        vehiculo=data.get("vehiculo", ""),
+        placa=data.get("placa", ""),
+        disponible=True,
+        en_servicio=False,
+    )
+    db.add(conductor)
+    db.commit()
+    db.refresh(conductor)
+    return {"id": conductor.id, "message": "Conductor creado exitosamente"}
+
+@app.patch("/api/admin/conductores/{conductor_id}/toggle-status")
+async def toggle_conductor_status(conductor_id: int, db: Session = Depends(get_db)):
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if not conductor:
+        throw_http_err(404, "Conductor no encontrado")
+    conductor.disponible = not conductor.disponible
+    db.commit()
+    return {"id": conductor.id, "disponible": conductor.disponible}
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# ASIGNACION DE SERVICIO
+# ---------------------------------------------------------------------------
+
+def normalizar_telefono_co(numero: str) -> str:
+    """
+    Normaliza un numero colombiano para la API de WhatsApp.
+    - Quita espacios, guiones y el caracter '+'
+    - Si ya empieza con 57 y tiene 12 digitos, lo deja igual
+    - Si solo tiene 10 digitos (numero local), agrega el prefijo 57
+    """
+    if not numero:
+        return numero
+    n = numero.strip().replace(" ", "").replace("-", "").replace("+", "")
+    # Ya tiene codigo de pais Colombia
+    if n.startswith("57") and len(n) == 12:
+        return n
+    # Numero local de 10 digitos -> agrega 57
+    if len(n) == 10:
+        return f"57{n}"
+    # Otro formato: devolver como esta
+    return n
+
+@app.post("/api/admin/asignar-servicio")
+async def asignar_servicio(
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Asigna un conductor a una solicitud de transporte.
+    - Genera un código de verificación de 6 dígitos.
+    - Notifica al pasajero vía WhatsApp con el código, vehículo y conductor.
+    - Notifica al conductor con los detalles del servicio.
+    """
+    solicitud_id = payload.get("solicitudId")
+    conductor_id = payload.get("conductorId")
+    vehiculo_payload = payload.get("vehiculo", "").strip()
+    placa_payload = payload.get("placa", "").strip()
+
+    if not solicitud_id or not conductor_id:
+        throw_http_err(400, "solicitudId y conductorId son requeridos")
+
+    # Convertir a entero si viene como string
+    try:
+        solicitud_id = int(str(solicitud_id).replace("SOL-", ""))
+        conductor_id = int(conductor_id)
+    except (ValueError, TypeError):
+        throw_http_err(400, "IDs inválidos")
+
+    servicio = db.query(models.Servicio).filter(models.Servicio.id == solicitud_id).first()
+    if not servicio:
+        throw_http_err(404, "Servicio no encontrado")
+
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if not conductor:
+        throw_http_err(404, "Conductor no encontrado")
+
+    # Generar código de verificación de 6 dígitos
+    codigo = f"{secrets.randbelow(1000000):06d}"
+
+    # Construir descripcion del vehiculo (prioriza el del payload, fallback al conductor)
+    if vehiculo_payload and placa_payload:
+        vehiculo_desc = f"{vehiculo_payload} ({placa_payload.upper()})"
+        placa_final = placa_payload.upper()
+        vehiculo_final = vehiculo_payload
+    elif conductor.vehiculo and conductor.placa:
+        vehiculo_desc = f"{conductor.vehiculo} ({conductor.placa})"
+        placa_final = conductor.placa
+        vehiculo_final = conductor.vehiculo
+    else:
+        vehiculo_desc = "Por confirmar"
+        placa_final = ""
+        vehiculo_final = ""
+
+    # Actualizar el servicio
+    servicio.conductor_id = conductor.id
+    servicio.vehiculo_asignado = vehiculo_desc
+    servicio.estado = "ASIGNADO"
+    servicio.codigo_verificacion = codigo
+    db.commit()
+    db.refresh(servicio)
+
+    # Obtener datos del pasajero
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
+    hora_str = servicio.hora_programada or "Por confirmar"
+
+    # ----- Mensaje al PASAJERO -----
+    if usuario and usuario.whatsapp:
+        msg_pasajero = (
+            f"\U0001f697 *Tu servicio ha sido asignado - ViajaColombia*\n\n"
+            f"Hola {usuario.nombre}, tu solicitud de transporte está lista.\n\n"
+            f"\U0001f4cd *Recogida:* {servicio.direccion_origen}\n"
+            f"\U0001f3c1 *Destino:* {servicio.direccion_destino}\n"
+            f"\u23f0 *Fecha / Hora:* {hora_str}\n\n"
+            f"\U0001f68c *Vehículo:* {vehiculo_final} \u2014 Placa *{placa_final}*\n"
+            f"\U0001f464 *Conductor:* {conductor.nombre}\n\n"
+            f"\U0001f511 *Código de verificación: {codigo}*\n"
+            f"Presenta este código al conductor cuando llegue a recogerte."
+        )
+        background_tasks.add_task(whatsapp.send_whatsapp_text, usuario.whatsapp, msg_pasajero)
+
+
+    # ----- Mensaje al CONDUCTOR -----
+    raw_tel = conductor.whatsapp or conductor.telefono
+    conductor_wa = normalizar_telefono_co(raw_tel) if raw_tel else None
+    if conductor_wa:
+        pasajero_nombre = usuario.nombre if usuario else "N/A"
+        msg_conductor = (
+            f"\U0001f4e2 *Nuevo servicio asignado - ViajaColombia*\n\n"
+            f"Hola {conductor.nombre}, se te ha asignado un servicio.\n\n"
+            f"\U0001f68c *Vehículo:* {vehiculo_final} \u2014 Placa *{placa_final}*\n"
+            f"\U0001f464 *Pasajero:* {pasajero_nombre}\n\n"
+            f"\U0001f4cd *Dirección de recogida:* {servicio.direccion_origen}\n"
+            f"\U0001f3c1 *Destino final:* {servicio.direccion_destino}\n"
+            f"\u23f0 *Fecha / Hora solicitada:* {hora_str}\n\n"
+            f"El pasajero te presentará un código de verificación al abordaje. \u00a1Éxito en el servicio!"
+        )
+        background_tasks.add_task(whatsapp.send_whatsapp_text, conductor_wa, msg_conductor)
+
+    logger.info(
+        f"Servicio #{servicio.id} asignado al conductor #{conductor.id} "
+        f"({conductor.nombre}) con código {codigo}"
+    )
+
+    return {
+        "message": "Servicio asignado exitosamente",
+        "servicio_id": servicio.id,
+        "conductor": conductor.nombre,
+        "vehiculo": servicio.vehiculo_asignado,
+        "codigo_verificacion": codigo,
+        "estado": servicio.estado,
+    }
+
+# ---------------------------------------------------------------------------
+# VEHICULOS (flota)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/admin/vehiculos")
+async def get_vehiculos(db: Session = Depends(get_db)):
+    """Retorna todos los vehículos registrados en la flota."""
+    vehiculos = db.query(models.Vehiculo).all()
+    return [
+        {
+            "id": v.id,
+            "placa": v.placa,
+            "marca": v.marca,
+            "modelo": v.modelo,
+            "anio": v.anio,
+            "capacidad": v.capacidad,
+            "tipo_servicio": v.tipo_servicio,
+            "estado": v.estado,
+        }
+        for v in vehiculos
+    ]
+
+@app.post("/api/admin/vehiculos")
+async def create_vehiculo(data: dict, db: Session = Depends(get_db)):
+    """Registra un nuevo vehículo en la flota."""
+    placa = (data.get("placa") or "").strip().upper()
+    if not placa:
+        throw_http_err(400, "La placa es obligatoria")
+
+    existing = db.query(models.Vehiculo).filter(models.Vehiculo.placa == placa).first()
+    if existing:
+        throw_http_err(400, f"Ya existe un vehículo con la placa {placa}")
+
+    vehiculo = models.Vehiculo(
+        placa=placa,
+        marca=data.get("marca", ""),
+        modelo=data.get("modelo", ""),
+        anio=data.get("año") or data.get("anio"),
+        capacidad=data.get("capacidad"),
+        tipo_servicio=data.get("tipo_servicio", "Estándar"),
+        estado=data.get("estado", "activo"),
+    )
+    db.add(vehiculo)
+    db.commit()
+    db.refresh(vehiculo)
+    return {"id": vehiculo.id, "message": "Vehículo registrado exitosamente"}
+
+@app.patch("/api/admin/vehiculos/{vehiculo_id}")
+async def update_vehiculo(vehiculo_id: int, data: dict, db: Session = Depends(get_db)):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if not vehiculo:
+        throw_http_err(404, "Vehículo no encontrado")
+    for key, value in data.items():
+        if key == "placa" and value:
+            value = value.strip().upper()
+        if key == "año":
+            key = "anio"
+        if hasattr(vehiculo, key):
+            setattr(vehiculo, key, value)
+    db.commit()
+    db.refresh(vehiculo)
+    return {"id": vehiculo.id, "message": "Vehículo actualizado"}
+
+@app.delete("/api/admin/vehiculos/{vehiculo_id}")
+async def delete_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    if not vehiculo:
+        throw_http_err(404, "Vehículo no encontrado")
+    db.delete(vehiculo)
+    db.commit()
+    return {"message": "Vehículo eliminado"}
+
 @app.get("/api/admin/empresas")
 async def get_admin_empresas(db: Session = Depends(get_db)):
     empresas = db.query(models.Empresa).all()
@@ -439,13 +741,39 @@ async def create_admin_empresa(data: dict, db: Session = Depends(get_db)):
 
 @app.post("/api/admin/supervisores")
 async def create_admin_supervisor(data: dict, db: Session = Depends(get_db)):
-    # Buscamos si ya existe por whatsapp
+    # 1. Crear el registro de Supervisor (para WhatsApp)
     supervisor = models.Supervisor(
         nombre=data.get("nombre"),
         whatsapp=data.get("whatsapp"),
-        empresa_id=data.get("empresa_id")
+        empresa_id=data.get("empresa_id"),
+        email=data.get("email")
     )
     db.add(supervisor)
+    
+    # 2. Crear el acceso al Dashboard (UsuarioDashboard)
+    email = data.get("email", "").lower().strip()
+    password = data.get("password")
+    
+    if email and password:
+        # Verificar si ya existe el usuario dashboard
+        existing_user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
+        if not existing_user:
+            new_dashboard_user = models.UsuarioDashboard(
+                email=email,
+                nombre=data.get("nombre"),
+                password_hash=auth.get_password_hash(password),
+                rol=4, # AUTORIZADOR
+                estado="activo",
+                empresa_cliente_id=data.get("empresa_id")
+            )
+            db.add(new_dashboard_user)
+        else:
+            # Si ya existe, nos aseguramos que tenga el rol y empresa correcta
+            existing_user.rol = 4
+            existing_user.empresa_cliente_id = data.get("empresa_id")
+            if password:
+                existing_user.password_hash = auth.get_password_hash(password)
+
     db.commit()
     db.refresh(supervisor)
     return supervisor
@@ -605,6 +933,7 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
     if text.lower() == "cancelar":
         session.paso_actual = "INICIO"
         session.datos_temporales = {}
+        flag_modified(session, "datos_temporales")
         db.commit()
         return {"action": "send_message", "phone": usuario.whatsapp, "message": "Proceso cancelado. Escribe 'Hola' para empezar de nuevo."}
         
@@ -612,43 +941,55 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
     if paso == "INICIO":
         response_msg = "Hola 👋 Bienvenido a ViajaColombia. Por favor dime tu dirección de *recogida*:"
         session.paso_actual = "PEDIR_ORIGEN"
+        db.commit()
         
     elif paso == "PEDIR_ORIGEN":
-        datos = session.datos_temporales.copy() if hasattr(session.datos_temporales, 'copy') else {}
+        datos = dict(session.datos_temporales or {})
         datos["origen"] = text
         session.datos_temporales = datos
-        response_msg = "¡Entendido! Ahora dime tu dirección de *destino final*:"
+        flag_modified(session, "datos_temporales")
         session.paso_actual = "PEDIR_DESTINO"
+        db.commit()
+        response_msg = "¡Entendido! Ahora dime tu dirección de *destino final*:"
         
     elif paso == "PEDIR_DESTINO":
-        datos = session.datos_temporales.copy() if hasattr(session.datos_temporales, 'copy') else {}
+        datos = dict(session.datos_temporales or {})
         datos["destino"] = text
         session.datos_temporales = datos
-        response_msg = "Perfecto. Por último, dime la *fecha y hora programada* (ejemplo: 'Hoy a las 4pm' o '25 de Oct a las 08:00'):"
+        flag_modified(session, "datos_temporales")
         session.paso_actual = "PEDIR_HORA"
+        db.commit()
+        response_msg = "Perfecto. Por último, dime la *fecha y hora programada* (ejemplo: 'Hoy a las 4pm' o '25 de Oct a las 08:00'):"
         
     elif paso == "PEDIR_HORA":
-        datos = session.datos_temporales.copy() if hasattr(session.datos_temporales, 'copy') else {}
-        datos["hora"] = text
-        session.datos_temporales = datos
-        
-        origen = datos.get('origen', 'No especificado')
-        destino = datos.get('destino', 'No especificado')
-        hora = datos.get('hora', text)
-        
-        response_msg = f"Revisemos tu solicitud:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Fecha/Hora: {hora}\n\nResponde *SI* para confirmar o *CANCELAR* para abortar."
+        current_datos = dict(session.datos_temporales or {})
+        current_datos["hora"] = text
+        session.datos_temporales = current_datos
+        flag_modified(session, "datos_temporales")
         session.paso_actual = "CONFIRMAR_SERVICIO"
+        db.commit()
+        db.refresh(session)
+        
+        origen = current_datos.get('origen', 'No especificado')
+        destino = current_datos.get('destino', 'No especificado')
+        hora = current_datos.get('hora', text)
+        
+        response_msg = f"DEBUG-V3 | Revisemos:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Hora: {hora}\n\nResponde *SI* o *CANCELAR*."
         
     elif paso == "CONFIRMAR_SERVICIO":
         if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
-            datos = session.datos_temporales
-            # Crear el servicio en estado PENDIENTE
+            datos_finales = dict(session.datos_temporales or {})
+            
+            # Crear el servicio con un prefijo para identificarlo en la DB
+            valor_hora = datos_finales.get("hora", "Pronto")
+            print(f"DEBUG-V3: Guardando hora -> {valor_hora}")
+            
             nuevo_servicio = models.Servicio(
                 usuario_id=usuario.id,
                 empresa_id=usuario.empresa_id,
-                direccion_origen=datos.get("origen", "Desconocido"),
-                direccion_destino=datos.get("destino", "Desconocido"),
-                hora_programada=datetime.now(), # TO DO: En un sistema real usaríamos IA/NLP (o dialogflow) para parsear el string de "hora" a datetime
+                direccion_origen=datos_finales.get("origen", "Desconocido"),
+                direccion_destino=datos_finales.get("destino", "Desconocido"),
+                hora_programada=f"TEXTO: {valor_hora}",
                 estado="PENDIENTE"
             )
             db.add(nuevo_servicio)
@@ -656,6 +997,7 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             # Resetear sesion
             session.paso_actual = "INICIO"
             session.datos_temporales = {}
+            flag_modified(session, "datos_temporales")
             db.commit()
             
             # Buscar supervisor de la empresa
@@ -673,7 +1015,6 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
                     f"¿Deseas autorizar o rechazar esta solicitud?"
                 )
                 
-                # Devolvemos una instrucción en formato array a n8n para que procese automáticamente a 2 destinatarios
                 return [
                     {"action": "send_message", "phone": usuario.whatsapp, "message": "Tu solicitud ha sido enviada al supervisor para su autorización. Te notificaremos pronto."},
                     {
@@ -691,10 +1032,6 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
         else:
             response_msg = "No reconocimos tu respuesta. Responde *SI* para confirmar o *CANCELAR*."
             
-    # Guardar estado de la base de datos
-    if db.is_modified(session):
-        db.commit()
-        
     return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
 
 def handle_supervisor_message(supervisor: models.Supervisor, text: str, db: Session):
@@ -747,4 +1084,241 @@ def handle_supervisor_message(supervisor: models.Supervisor, text: str, db: Sess
         except IndexError:
             return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Formato incorrecto. Usa: RECHAZAR [numero]"}
         
-    return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Comando de supervisor no reconocido. (Usa: AUTORIZAR [num] o RECHAZAR [num])"}
+    return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Comando de supervisor no reconocido. (Usa: AUTORIZADOR [num] o RECHAZAR [num])"}
+
+# --- AUTORIZADOR (SUPERVISOR) ROUTES ---
+
+@app.get("/api/autorizador/estadisticas")
+async def get_autorizador_stats(request: Request, desde: str = None, hasta: str = None, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header: throw_http_err(401, "No autorizado")
+    
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    if not empresa_id:
+        return {"resumen": {"total_servicios": 0, "servicios_finalizados": 0, "servicios_autorizados": 0, "servicios_rechazados": 0, "servicios_pendientes": 0, "costo_total": 0, "duracion_promedio_min": 0, "costo_excedentes": 0}}
+
+    # Base query filtrada por empresa
+    q = db.query(models.Servicio).filter(models.Servicio.empresa_id == empresa_id)
+    
+    # Aplicar filtros de fecha si existen
+    from datetime import datetime
+    if desde:
+        try:
+            d_obj = datetime.strptime(desde, "%Y-%m-%d")
+            q = q.filter(models.Servicio.created_at >= d_obj)
+        except: pass
+    if hasta:
+        try:
+            h_obj = datetime.strptime(hasta, "%Y-%m-%d")
+            # Ajustar a final del día
+            h_obj = h_obj.replace(hour=23, minute=59, second=59)
+            q = q.filter(models.Servicio.created_at <= h_obj)
+        except: pass
+    
+    total = q.count()
+    finalizados = q.filter(models.Servicio.estado == "COMPLETADO").count()
+    autorizados = q.filter(models.Servicio.estado == "AUTORIZADO").count()
+    rechazados = q.filter(models.Servicio.estado == "RECHAZADO").count()
+    pendientes = q.filter(models.Servicio.estado == "PENDIENTE").count()
+    
+    # Histórico de últimos 3 meses
+    from datetime import datetime, timedelta
+    from sqlalchemy import extract
+    
+    historico = []
+    meses_nombres = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    
+    for i in range(2, -1, -1):
+        target_date = datetime.now() - timedelta(days=i*30)
+        mes_idx = target_date.month - 1
+        conteo = q.filter(
+            extract('year', models.Servicio.created_at) == target_date.year,
+            extract('month', models.Servicio.created_at) == target_date.month
+        ).count()
+        historico.append({"mes": meses_nombres[mes_idx], "servicios": conteo})
+
+    return {
+        "resumen": {
+            "total_servicios": total,
+            "servicios_finalizados": finalizados,
+            "servicios_autorizados": autorizados,
+            "servicios_rechazados rechazados": rechazados,
+            "servicios_pendientes": pendientes,
+            "costo_total": 0,
+            "duracion_promedio_min": 0,
+            "costo_excedentes": 0
+        },
+        "graficas": {
+            "tendencia": historico,
+            "distribucion": [
+                {"name": "Autorizados", "value": autorizados},
+                {"name": "Rechazados", "value": rechazados},
+                {"name": "Pendientes", "value": pendientes}
+            ]
+        }
+    }
+
+@app.get("/api/autorizador/solicitudes")
+async def get_autorizador_solicitudes(request: Request, estado: str = None, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    query = db.query(models.Servicio).filter(models.Servicio.empresa_id == empresa_id)
+    
+    if estado:
+        # Mapeo de estados del frontend a la base de datos
+        mapping = {
+            "pendiente_autorizacion": "PENDIENTE",
+            "autorizada": "AUTORIZADO",
+            "rechazada": "RECHAZADO",
+            "finalizada": "COMPLETADO",
+            "en_curso": "EN CURSO",
+            "asignada": "ASIGNADO",
+            "cancelada": "CANCELADO"
+        }
+        db_status = mapping.get(estado, estado.upper())
+        query = query.filter(models.Servicio.estado == db_status)
+        
+    solicitudes = query.order_by(models.Servicio.created_at.desc()).all()
+    
+    # Formatear para que el frontend lo entienda (espera objeto con llave 'solicitudes')
+    result = []
+    # Mapeo inverso para la salida
+    inverse_mapping = {
+        "PENDIENTE": "pendiente_autorizacion",
+        "AUTORIZADO": "autorizada",
+        "RECHAZADO": "rechazada",
+        "COMPLETADO": "finalizada",
+        "EN CURSO": "en_curso",
+        "ASIGNADO": "asignada",
+        "CANCELADO": "cancelada"
+    }
+    
+    for s in solicitudes:
+        db_status = s.estado.upper() if s.estado else "PENDIENTE"
+        result.append({
+            "id": s.id,
+            "numero_solicitud": s.id,
+            "estado": inverse_mapping.get(db_status, db_status.lower()), 
+            "direccion_recogida": s.direccion_origen,
+            "direccion_destino": s.direccion_destino,
+            "fecha": s.created_at.strftime("%Y-%m-%d") if s.created_at else "",
+            "hora_programada": str(s.hora_programada) if s.hora_programada else "Pronto",
+            "empleado": {
+                "nombre": s.usuario.nombre if s.usuario else "N/A",
+                "cargo": s.usuario.cargo if s.usuario else "Empleado"
+            },
+            "tipo_servicio": {
+                "nombre": "Corporativo",
+                "tarifa_base": 0
+            }
+        })
+        
+    return {"solicitudes": result}
+
+@app.get("/api/autorizador/empleados")
+async def get_autorizador_empleados(request: Request, search: str = "", page: int = 1, size: int = 20, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header: throw_http_err(401, "No autorizado")
+    
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    if not payload: throw_http_err(401, "Token inválido")
+    
+    empresa_id = payload.get("empresaClienteId")
+    
+    # Base query
+    query = db.query(models.Usuario).filter(models.Usuario.empresa_id == empresa_id)
+    
+    # Filtro de búsqueda (nombre o whatsapp)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (models.Usuario.nombre.ilike(search_term)) | 
+            (models.Usuario.whatsapp.ilike(search_term))
+        )
+    
+    total = query.count()
+    paginated_empleados = query.offset((page - 1) * size).limit(size).all()
+    
+    # Calcular estadísticas por empleado
+    from sqlalchemy import extract
+    from datetime import datetime
+    ahora = datetime.now()
+    
+    result = []
+    for e in paginated_empleados:
+        # Total servicios
+        total_servicios = db.query(models.Servicio).filter(models.Servicio.usuario_id == e.id).count()
+        
+        # Servicios mes actual
+        servicios_mes = db.query(models.Servicio).filter(
+            models.Servicio.usuario_id == e.id,
+            extract('year', models.Servicio.created_at) == ahora.year,
+            extract('month', models.Servicio.created_at) == ahora.month
+        ).count()
+        
+        result.append({
+            "id": e.id,
+            "nombre": e.nombre,
+            "whatsapp": e.whatsapp,
+            "cargo": e.cargo,
+            "activo": e.activo, # Usamos el campo 'activo' del modelo Usuario
+            "total_servicios": total_servicios,
+            "servicios_mes": servicios_mes
+        })
+        
+    return {"empleados": result, "total": total, "page": page, "size": size}
+
+@app.patch("/api/autorizador/empleados/{empleado_id}/toggle-status")
+async def toggle_autorizador_empleado_status(request: Request, empleado_id: int, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    empleado = db.query(models.Usuario).filter(
+        models.Usuario.id == empleado_id, 
+        models.Usuario.empresa_id == empresa_id
+    ).first()
+    
+    if not empleado:
+        throw_http_err(404, "Empleado no encontrado")
+        
+    empleado.activo = not empleado.activo
+    db.commit()
+    db.refresh(empleado)
+    
+    return {"id": empleado.id, "activo": empleado.activo, "message": "Estado actualizado"}
+
+@app.get("/api/autorizador/empleados/{empleado_id}/servicios")
+async def get_autorizador_empleado_servicios(request: Request, empleado_id: int, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    # Verificar que el empleado pertenece a la empresa
+    employee = db.query(models.Usuario).filter(models.Usuario.id == empleado_id, models.Usuario.empresa_id == empresa_id).first()
+    if not employee:
+        throw_http_err(403, "No tienes permiso para ver este empleado")
+        
+    servicios = db.query(models.Servicio).filter(models.Servicio.usuario_id == empleado_id).order_by(models.Servicio.created_at.desc()).all()
+    
+    # Formatear para el modal
+    result = []
+    for s in servicios:
+        result.append({
+            "id": s.id,
+            "origen": s.direccion_origen,
+            "destino": s.direccion_destino,
+            "fecha": s.created_at.strftime("%d/%m/%Y %I:%M %p") if s.created_at else "N/A",
+            "estado": s.estado
+        })
+        
+    return {"servicios": result}

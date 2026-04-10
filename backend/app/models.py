@@ -3,6 +3,19 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
 
+class Vehiculo(Base):
+    __tablename__ = "vehiculos"
+    id = Column(Integer, primary_key=True, index=True)
+    placa = Column(String, unique=True, index=True)
+    marca = Column(String)
+    modelo = Column(String)
+    anio = Column(Integer, nullable=True)
+    capacidad = Column(Integer, nullable=True)
+    tipo_servicio = Column(String, nullable=True)
+    estado = Column(String, default="activo")  # activo, mantenimiento, inactivo
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Empresa(Base):
     __tablename__ = "companies"
     id = Column(Integer, primary_key=True, index=True)
@@ -46,6 +59,7 @@ class Conductor(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
     telefono = Column(String, unique=True)
+    whatsapp = Column(String, nullable=True)  # Número WhatsApp con código de país
     vehiculo = Column(String)
     placa = Column(String, unique=True)
     disponible = Column(Boolean, default=True)
@@ -61,12 +75,15 @@ class Servicio(Base):
     empresa_id = Column(Integer, ForeignKey("companies.id"))
     supervisor_id = Column(Integer, ForeignKey("supervisors.id"), nullable=True)
     conductor_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    vehiculo_asignado = Column(String, nullable=True)  # Placa/descripción del vehículo asignado
     
     direccion_origen = Column(String)
     direccion_destino = Column(String)
-    hora_programada = Column(DateTime)
+    hora_programada = Column(String, nullable=True) # Texto libre: "Hoy 10am", "25 Oct", etc.
     
     estado = Column(String, default="PENDIENTE") # PENDIENTE, AUTORIZADO, RECHAZADO, ASIGNADO, EN_CURSO, COMPLETADO, CANCELADO
+    hora_solicitada_texto = Column(String, nullable=True)  # Texto libre que el usuario escribió en WhatsApp
+    codigo_verificacion = Column(String, nullable=True)  # Código que el pasajero muestra al conductor
     
     encuesta_calificacion = Column(Integer, nullable=True)
     encuesta_comentario = Column(String, nullable=True)

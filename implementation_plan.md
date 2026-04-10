@@ -149,7 +149,7 @@ Sesion WhatsApp (wa_sessions)
 ### 🏢 FASE 2 – Gestión Avanzada de Usuarios y Empresas
 **Objetivo:** Dar autonomía a los supervisores para gestionar sus equipos.
 
-- [ ] Formulario de registro de usuarios con link único por empresa
+- 
 - [ ] Importación masiva de usuarios vía Excel (.xlsx)
 - [ ] Dashboard del supervisor:
   - Servicios solicitados por su empresa

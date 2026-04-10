@@ -25,7 +25,7 @@ const estadoBadge: Record<string, { label: string; variant: 'default' | 'seconda
 };
 
 const AutorizadorSolicitudes = () => {
-  const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('pendiente_autorizacion');
   const [observaciones, setObservaciones] = useState('');
   const [solicitudActiva, setSolicitudActiva] = useState<string | null>(null);
   const queryClient = useQueryClient();

@@ -42,10 +42,10 @@ export const adminAPI = {
     );
   },
 
-  asignarServicio: async (solicitudId: string, conductorId: string, vehiculoId?: string) => {
+  asignarServicio: async (solicitudId: string | number, conductorId: string | number, vehiculo?: string, placa?: string) => {
     return apiRequest('/api/admin/asignar-servicio', {
       method: 'POST',
-      body: JSON.stringify({ solicitudId, conductorId, vehiculoId }),
+      body: JSON.stringify({ solicitudId, conductorId, vehiculo, placa }),
     });
   },
 
@@ -59,11 +59,41 @@ export const adminAPI = {
     );
   },
 
+  createConductor: async (data: any) => {
+    return apiRequest('/api/admin/conductores', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  toggleConductorStatus: async (conductorId: number) => {
+    return apiRequest(`/api/admin/conductores/${conductorId}/toggle-status`, {
+      method: 'PATCH',
+    });
+  },
+
   getVehiculos: async (filters?: { empresa?: string }) => {
-    const params = new URLSearchParams();
-    if (filters?.empresa) params.append('empresa', filters.empresa);
-    const query = params.toString();
-    return apiRequest(`/api/admin/vehiculos${query ? '?' + query : ''}`);
+    return apiRequest('/api/admin/vehiculos');
+  },
+
+  createVehiculo: async (data: any) => {
+    return apiRequest('/api/admin/vehiculos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateVehiculo: async (id: number, data: any) => {
+    return apiRequest(`/api/admin/vehiculos/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteVehiculo: async (id: number) => {
+    return apiRequest(`/api/admin/vehiculos/${id}`, {
+      method: 'DELETE',
+    });
   },
 
   getTiposServicio: async () => {
@@ -285,8 +315,17 @@ export const autorizadorAPI = {
     );
   },
 
-  getEmpleados: async () => {
-    return apiRequest('/api/autorizador/empleados');
+  getEmpleados: async (filters?: { search?: string; page?: number; size?: number }) => {
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.size) params.append('size', filters.size.toString());
+    const query = params.toString();
+    return apiRequest(`/api/autorizador/empleados${query ? '?' + query : ''}`);
+  },
+
+  getEmpleadoServicios: async (id: number) => {
+    return apiRequest(`/api/autorizador/empleados/${id}/servicios`);
   },
 
   createEmpleado: async (data: {
@@ -313,6 +352,12 @@ export const autorizadorAPI = {
   deleteEmpleado: async (id: string) => {
     return apiRequest(`/api/autorizador/empleados/${id}`, {
       method: 'DELETE',
+    });
+  },
+  
+  toggleEmpleadoStatus: async (id: number) => {
+    return apiRequest(`/api/autorizador/empleados/${id}/toggle-status`, {
+      method: 'PATCH',
     });
   },
 };

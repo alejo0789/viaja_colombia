@@ -76,7 +76,9 @@ export default function GestionEmpresas() {
   const [newMember, setNewMember] = useState({
     nombre: '',
     whatsapp: '',
-    cargo: ''
+    cargo: '',
+    email: '',
+    password: ''
   });
 
   // Bulk User Management Modal
@@ -142,7 +144,7 @@ export default function GestionEmpresas() {
     setMemberType(type);
     setTargetEmpresaId(empresaId);
     setEditingMemberId(null);
-    setNewMember({ nombre: '', whatsapp: '', cargo: '' });
+    setNewMember({ nombre: '', whatsapp: '', cargo: '', email: '', password: '' });
     setIsAddMemberModalOpen(true);
   };
 
@@ -151,9 +153,11 @@ export default function GestionEmpresas() {
     setTargetEmpresaId(empresaId);
     setEditingMemberId(member.id);
     setNewMember({ 
-      nombre: member.nombre, 
-      whatsapp: member.whatsapp, 
-      cargo: member.cargo || '' 
+      nombre: member.nombre || '',
+      whatsapp: member.whatsapp || '', 
+      cargo: member.cargo || '',
+      email: member.email || '',
+      password: ''
     });
     setIsAddMemberModalOpen(true);
   };
@@ -591,6 +595,33 @@ export default function GestionEmpresas() {
                 onChange={(e) => setNewMember({...newMember, whatsapp: e.target.value})}
               />
             </div>
+            {memberType === 'SUPERVISOR' && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="m_email" className="text-right">Email</Label>
+                  <Input 
+                    id="m_email" 
+                    type="email"
+                    placeholder="Para acceder a la web"
+                    className="col-span-3" 
+                    value={newMember.email}
+                    onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="m_pass" className="text-right">Contraseña</Label>
+                  <Input 
+                    id="m_pass" 
+                    type="password"
+                    placeholder={editingMemberId ? "Déjalo vacío para no cambiar" : "Clave de acceso"}
+                    className="col-span-3" 
+                    value={newMember.password}
+                    onChange={(e) => setNewMember({...newMember, password: e.target.value})}
+                  />
+                </div>
+              </>
+            )}
+
             {memberType === 'USUARIO' && (
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="m_cargo" className="text-right">Cargo</Label>
