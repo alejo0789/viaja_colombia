@@ -71,3 +71,33 @@ def send_whatsapp_interactive(to: str, message: str, buttons: list):
         logger.error(f"Error enviando botones WhatsApp a {to}: {e.response.text}")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+def send_whatsapp_template(to: str, template_name: str, components: list, language: str = "es"):
+    """
+    Envia un mensaje usando una plantilla oficial de Meta.
+    components: lista de componentes (body, buttons, etc.) con sus variables.
+    """
+    payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": to,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {
+                "code": language
+            },
+            "components": components
+        }
+    }
+    
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        logger.info(f"WhatsApp Plantilla '{template_name}' enviada a {to}: {response.json()}")
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Error enviando plantilla WhatsApp a {to}: {e.response.text}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in template: {e}")
+        return None

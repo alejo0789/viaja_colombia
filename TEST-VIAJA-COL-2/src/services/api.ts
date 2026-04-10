@@ -66,6 +66,13 @@ export const adminAPI = {
     });
   },
 
+  updateConductor: async (id: number, data: any) => {
+    return apiRequest(`/api/admin/conductores/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   toggleConductorStatus: async (conductorId: number) => {
     return apiRequest(`/api/admin/conductores/${conductorId}/toggle-status`, {
       method: 'PATCH',

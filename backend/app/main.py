@@ -462,6 +462,20 @@ async def create_conductor(data: dict, db: Session = Depends(get_db)):
     db.refresh(conductor)
     return {"id": conductor.id, "message": "Conductor creado exitosamente"}
 
+@app.patch("/api/admin/conductores/{conductor_id}")
+async def update_conductor(conductor_id: int, data: dict, db: Session = Depends(get_db)):
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    if not conductor:
+        throw_http_err(404, "Conductor no encontrado")
+        
+    for key, value in data.items():
+        if hasattr(conductor, key):
+            setattr(conductor, key, value)
+            
+    db.commit()
+    db.refresh(conductor)
+    return conductor
+
 @app.patch("/api/admin/conductores/{conductor_id}/toggle-status")
 async def toggle_conductor_status(conductor_id: int, db: Session = Depends(get_db)):
     conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
@@ -914,6 +928,13 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
                 {"id": item["btn2_id"], "title": item["btn2_text"]}
             ]
             background_tasks.add_task(whatsapp.send_whatsapp_interactive, item["phone"], item["message"], buttons)
+        elif item.get("action") == "send_template":
+            background_tasks.add_task(
+                whatsapp.send_whatsapp_template, 
+                item["phone"], 
+                item["template_name"], 
+                item["components"]
+            )
             
     return {"status": "processed"}
 
@@ -1002,26 +1023,42 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             if supervisor:
                 db.refresh(nuevo_servicio)
                 hora_str = datos_finales.get('hora', 'No especificado')
-                msg_supervisor = (
-                    f"🛎️ *NUEVA SOLICITUD DE TRANSPORTE*\n"
-                    f"📌 *ID del Servicio:* #{nuevo_servicio.id}\n\n"
-                    f"👤 *Empleado:* {usuario.nombre}\n"
-                    f"📍 *Origen:* {nuevo_servicio.direccion_origen}\n"
-                    f"🏁 *Destino:* {nuevo_servicio.direccion_destino}\n"
-                    f"⏰ *Fecha/Hora:* {hora_str}\n\n"
-                    f"¿Deseas autorizar o rechazar esta solicitud?"
-                )
                 
+                # Preparar componentes de la plantilla autorizacion_supervisor
+                components = [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {"type": "text", "text": str(nuevo_servicio.id)},
+                            {"type": "text", "text": usuario.nombre},
+                            {"type": "text", "text": nuevo_servicio.direccion_origen},
+                            {"type": "text", "text": nuevo_servicio.direccion_destino},
+                            {"type": "text", "text": hora_str}
+                        ]
+                    },
+                    {
+                        "type": "button",
+                        "sub_type": "quick_reply",
+                        "index": 0,
+                        "parameters": [{"type": "payload", "payload": f"AUTORIZAR {nuevo_servicio.id}"}]
+                    },
+                    {
+                        "type": "button",
+                        "sub_type": "quick_reply",
+                        "index": 1,
+                        "parameters": [{"type": "payload", "payload": f"RECHAZAR {nuevo_servicio.id}"}]
+                    }
+                ]
+                
+                # Enviar confirmación al usuario y plantilla al supervisor
+                # En el return principal de handle_user_session procesamos esto
                 return [
                     {"action": "send_message", "phone": usuario.whatsapp, "message": "Tu solicitud ha sido enviada al supervisor para su autorización. Te notificaremos pronto."},
                     {
-                        "action": "send_interactive", 
+                        "action": "send_template", 
                         "phone": supervisor.whatsapp, 
-                        "message": msg_supervisor,
-                        "btn1_id": f"AUTORIZAR {nuevo_servicio.id}",
-                        "btn1_text": "✅ Autorizar",
-                        "btn2_id": f"RECHAZAR {nuevo_servicio.id}",
-                        "btn2_text": "❌ Rechazar"
+                        "template_name": "autorizacion_supervisor",
+                        "components": components
                     }
                 ]
             else:

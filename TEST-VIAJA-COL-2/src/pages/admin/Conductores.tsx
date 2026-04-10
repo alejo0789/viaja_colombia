@@ -19,13 +19,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
 import StatusBadge from '@/components/admin/StatusBadge';
 import { adminAPI } from '@/services/api';
 
 export default function Conductores() {
   const [conductores, setConductores] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<any>(null);
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -52,21 +53,39 @@ export default function Conductores() {
     }));
   };
 
-  const handleAddDriver = async () => {
+  const handleSaveDriver = async () => {
     try {
-      const result = await adminAPI.createConductor({
-        nombre: formData.nombre,
-        telefono: formData.telefono,
-        whatsapp: formData.telefono,
-      });
+      if (editingDriver) {
+        await adminAPI.updateConductor(editingDriver.id, {
+          nombre: formData.nombre,
+          telefono: formData.telefono,
+          whatsapp: formData.telefono,
+        });
+      } else {
+        await adminAPI.createConductor({
+          nombre: formData.nombre,
+          telefono: formData.telefono,
+          whatsapp: formData.telefono,
+        });
+      }
       // Recargar lista desde el backend
       const data = await adminAPI.getConductores();
       setConductores(Array.isArray(data) ? data : []);
       setIsDialogOpen(false);
+      setEditingDriver(null);
       setFormData({ nombre: '', telefono: '' });
     } catch (error) {
-      console.error('Error creating driver:', error);
+      console.error('Error saving driver:', error);
     }
+  };
+
+  const openEditModal = (driver: any) => {
+    setEditingDriver(driver);
+    setFormData({
+      nombre: driver.nombre,
+      telefono: driver.telefono || '',
+    });
+    setIsDialogOpen(true);
   };
 
   const toggleDriverStatus = async (conductorId: number) => {
@@ -95,7 +114,13 @@ export default function Conductores() {
           <h1 className="text-4xl font-bold text-[#1B3A5C]">Gestión de Conductores</h1>
           <p className="text-gray-600 mt-2">Administra a los conductores de la flota</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) {
+            setEditingDriver(null);
+            setFormData({ nombre: '', telefono: '' });
+          }
+        }}>
           <DialogTrigger asChild>
             <Button className="bg-[#F97316] hover:bg-orange-600">
               <Plus size={18} className="mr-2" />
@@ -104,9 +129,9 @@ export default function Conductores() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Agregar Nuevo Conductor</DialogTitle>
+              <DialogTitle>{editingDriver ? 'Editar Conductor' : 'Agregar Nuevo Conductor'}</DialogTitle>
               <DialogDescription>
-                Completa el formulario para registrar un nuevo conductor
+                {editingDriver ? 'Actualiza los datos del conductor' : 'Completa el formulario para registrar un nuevo conductor'}
               </DialogDescription>
             </DialogHeader>
               <div className="space-y-4 py-4">
@@ -143,9 +168,9 @@ export default function Conductores() {
               </Button>
               <Button
                 className="bg-[#F97316] hover:bg-orange-600"
-                onClick={handleAddDriver}
+                onClick={handleSaveDriver}
               >
-                Agregar
+                {editingDriver ? 'Guardar Cambios' : 'Agregar'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -173,13 +198,24 @@ export default function Conductores() {
                     <StatusBadge estado={conductor.disponible ? 'activo' : 'inactivo'} />
                   </TableCell>
                   <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => toggleDriverStatus(conductor.id)}
-                    >
-                      {conductor.disponible ? 'Desactivar' : 'Activar'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => toggleDriverStatus(conductor.id)}
+                          className={conductor.disponible ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}
+                        >
+                          {conductor.disponible ? 'Desactivar' : 'Activar'}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEditModal(conductor)}
+                          className="h-8 w-8 text-blue-600"
+                        >
+                          <Pencil size={16} />
+                        </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
