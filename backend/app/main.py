@@ -1361,50 +1361,61 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
     paso = session.paso_actual
     text_clean = "".join(filter(str.isdigit, text))
 
-    # Buscar servicio ASIGNADO para iniciar
+    # Buscar todos los servicios ASIGNADOS para este conductor
+    servicios_asignados = db.query(models.Servicio).filter(
+        models.Servicio.conductor_id == conductor.id,
+        models.Servicio.estado == "ASIGNADO"
+    ).all()
+
     if paso == "INICIO":
-        servicio = db.query(models.Servicio).filter(
-            models.Servicio.conductor_id == conductor.id,
-            models.Servicio.estado == "ASIGNADO"
-        ).order_by(models.Servicio.created_at.desc()).first()
-
-        if not servicio:
-            # Quizás ya tiene uno en curso y quiere finalizarlo?
-            servicio_en_curso = db.query(models.Servicio).filter(
-                models.Servicio.conductor_id == conductor.id,
-                models.Servicio.estado == "EN_CURSO"
-            ).order_by(models.Servicio.created_at.desc()).first()
-
-            if servicio_en_curso:
-                session.paso_actual = "FINALIZAR_SERVICIO"
-                session.datos_temporales = {"servicio_id": servicio_en_curso.id}
-                flag_modified(session, "datos_temporales")
-                db.commit()
-                return {"action": "send_message", "phone": conductor.whatsapp, "message": f"Tienes el servicio #{servicio_en_curso.id} en curso. Para finalizarlo, ingresa los *últimos 4 dígitos de la cédula del pasajero*."}
-            
-            return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, no tienes servicios asignados pendientes por iniciar en este momento."}
-
-        # Flujo de INICIAR SERVICIO
+        # Flujo de INICIAR SERVICIO por código
         if len(text_clean) == 6:
-            if text_clean == servicio.codigo_verificacion:
-                servicio.estado = "EN_CURSO"
-                servicio.hora_inicio = datetime.now()
+            # Buscar el servicio específico que coincida con el código
+            servicio_matcheado = next((s for s in servicios_asignados if s.codigo_verificacion == text_clean), None)
+            
+            if servicio_matcheado:
+                servicio_matcheado.estado = "EN_CURSO"
+                servicio_matcheado.hora_inicio = datetime.now()
                 session.paso_actual = "FINALIZAR_SERVICIO"
-                session.datos_temporales = {"servicio_id": servicio.id}
+                session.datos_temporales = {"servicio_id": servicio_matcheado.id}
                 flag_modified(session, "datos_temporales")
                 db.commit()
                 
                 # Notificar al pasajero
-                usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
+                usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio_matcheado.usuario_id).first()
                 notif_usuario = {"action": "send_message", "phone": usuario.whatsapp, "message": "🚖 Tu servicio ha iniciado. ¡Buen viaje!"} if usuario else None
                 
-                res = [{"action": "send_message", "phone": conductor.whatsapp, "message": f"Servicio #{servicio.id} INICIADO ✅. Cuando llegues al destino, ingresa los *últimos 4 dígitos de la cédula del pasajero* para finalizar."}]
+                res = [{"action": "send_message", "phone": conductor.whatsapp, "message": f"Servicio #{servicio_matcheado.id} INICIADO ✅. Al llegar al destino, ingresa los *últimos 4 dígitos de la cédula del pasajero* para completar el viaje."}]
                 if notif_usuario: res.append(notif_usuario)
                 return res
             else:
-                return {"action": "send_message", "phone": conductor.whatsapp, "message": "Código de verificación incorrecto. Por favor verifícalo con el pasajero e ingrésalo de nuevo."}
-        else:
-            return {"action": "send_message", "phone": conductor.whatsapp, "message": f"Tienes el servicio #{servicio.id} asignado. Por favor ingresa el *código de verificación de 6 dígitos* que te proporcionará el pasajero para iniciar el viaje."}
+                if servicios_asignados:
+                    return {"action": "send_message", "phone": conductor.whatsapp, "message": "❌ El código de verificación no coincide con ninguna de tus asignaciones actuales. Por favor verifícalo con el pasajero."}
+                # Si no tiene asignados, seguimos para ver si tiene uno en curso
+
+        # Si no mandó código de 6 o no matcheó con nada, vemos si tiene uno EN CURSO para finalizar
+        servicio_en_curso = db.query(models.Servicio).filter(
+            models.Servicio.conductor_id == conductor.id,
+            models.Servicio.estado == "EN_CURSO"
+        ).order_by(models.Servicio.created_at.desc()).first()
+
+        if servicio_en_curso:
+            session.paso_actual = "FINALIZAR_SERVICIO"
+            session.datos_temporales = {"servicio_id": servicio_en_curso.id}
+            flag_modified(session, "datos_temporales")
+            db.commit()
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": f"Tienes el servicio #{servicio_en_curso.id} EN CURSO. Para finalizarlo, ingresa los *últimos 4 dígitos de la cédula del pasajero*."}
+
+        # Si no tiene nada en curso y tiene asignados, listarlos
+        if servicios_asignados:
+            count = len(servicios_asignados)
+            msg = f"Hola 👋, tienes {count} {'servicios asignados' if count > 1 else 'servicio asignado'}:\n\n"
+            for s in servicios_asignados:
+                msg += f"• *#{s.id}*: {s.direccion_origen} → {s.direccion_destino}\n"
+            msg += "\nPor favor ingresa el *código de verificación de 6 dígitos* del servicio que vas a iniciar."
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": msg}
+        
+        return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, no tienes servicios asignados pendientes por iniciar en este momento."}
 
     elif paso == "FINALIZAR_SERVICIO":
         servicio_id = session.datos_temporales.get("servicio_id")
@@ -1422,12 +1433,10 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
             cedula_valida = False
             
             if usuario and usuario.cedula:
-                # Verificar ultimos 4 digitos
                 if usuario.cedula.endswith(text_clean):
                     cedula_valida = True
             else:
-                # Si no hay cédula registrada, permitimos cualquier 4 dígitos por ahora (o podrías denegarlo)
-                # El usuario pidió "ingresando los 4 ultimos digitos", asumiremos que si no hay cédula, no podemos validar estrictamente pero finalizamos.
+                # Si no hay cédula registrada, permitimos cualquier 4 dígitos como verificación de que el pasajero está presente
                 cedula_valida = True 
 
             if cedula_valida:
@@ -1439,15 +1448,15 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
                 db.commit()
                 
                 # Notificar al pasajero
-                notif_usuario = {"action": "send_message", "phone": usuario.whatsapp, "message": "✅ Tu servicio ha finalizado. Gracias por viajar con ViajaColombia."} if usuario else None
+                notif_usuario = {"action": "send_message", "phone": usuario.whatsapp, "message": "✅ Tu servicio ha finalizado con éxito. ¡Gracias por viajar con nosotros!"} if usuario else None
                 
-                res = [{"action": "send_message", "phone": conductor.whatsapp, "message": f"Servicio #{servicio.id} FINALIZADO ✅. ¡Gracias por tu excelente labor!"}]
+                res = [{"action": "send_message", "phone": conductor.whatsapp, "message": f"Servicio #{servicio.id} FINALIZADO ✅. ¡Buen trabajo!"}]
                 if notif_usuario: res.append(notif_usuario)
                 return res
             else:
-                return {"action": "send_message", "phone": conductor.whatsapp, "message": "Los dígitos no coinciden. Por favor ingresa los últimos 4 dígitos de la cédula del pasajero correctamente."}
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": "❌ Los dígitos no coinciden con la cédula registrada. Por favor verifícalos y envíalos de nuevo."}
         else:
-            return {"action": "send_message", "phone": conductor.whatsapp, "message": "Por favor ingresa los *4 últimos dígitos de la cédula del pasajero* para finalizar el servicio."}
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": "Por favor ingresa los *4 últimos dígitos de la cédula del pasajero* para completar el servicio."}
 
     return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, ¿en qué puedo ayudarte?"}
 
