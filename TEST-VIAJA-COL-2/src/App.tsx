@@ -19,6 +19,7 @@ import AdminTarifas from './pages/admin/Tarifas';
 import AdminAlertas from './pages/admin/Alertas';
 import GestionEmpresas from './pages/admin/GestionEmpresas';
 import MaestroUsuarios from './pages/admin/MaestroUsuarios';
+import Asignaciones from './pages/admin/Asignaciones';
 
 // Real Autorizador Pages
 import AutorizadorDashboard from './pages/autorizador/AutorizadorDashboard';
@@ -75,6 +76,7 @@ export default function App() {
             >
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="solicitudes" element={<AdminSolicitudes />} />
+              <Route path="asignaciones" element={<Asignaciones />} />
               <Route path="conductores" element={<AdminConductores />} />
               <Route path="vehiculos" element={<AdminVehiculos />} />
               <Route path="empresas" element={<GestionEmpresas />} />

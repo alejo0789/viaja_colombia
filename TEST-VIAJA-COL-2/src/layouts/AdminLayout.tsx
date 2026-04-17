@@ -27,6 +27,12 @@ export default function AdminLayout() {
             Solicitudes
           </Link>
           <Link
+            to="/admin/asignaciones"
+            className="block px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+          >
+            Asignaciones
+          </Link>
+          <Link
             to="/admin/conductores"
             className="block px-4 py-2 rounded-lg hover:bg-gray-800 transition"
           >

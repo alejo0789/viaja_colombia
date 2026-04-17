@@ -300,9 +300,20 @@ async def get_admin_dashboard(
     }
 
 @app.get("/api/admin/solicitudes")
-async def get_admin_solicitudes(request: Request, estado: str = None, page: int = 1, size: int = 20, db: Session = Depends(get_db)):
+async def get_admin_solicitudes(
+    request: Request, 
+    estado: str = None, 
+    empresa: str = None,
+    mes: str = None,
+    desde: str = None,
+    hasta: str = None,
+    page: int = 1, 
+    size: int = 20, 
+    db: Session = Depends(get_db)
+):
     auth_header = request.headers.get("Authorization")
     user_empresa_id = None
+    role_str = "ADMIN"
     is_admin = True
 
     if auth_header:
@@ -315,12 +326,46 @@ async def get_admin_solicitudes(request: Request, estado: str = None, page: int 
 
     query = db.query(models.Servicio)
     
+    # Base filters
+    filters = []
+
     # Force filter if not admin
     if not is_admin and user_empresa_id:
-        query = query.filter(models.Servicio.empresa_id == user_empresa_id)
+        filters.append(models.Servicio.empresa_id == user_empresa_id)
+    elif empresa and empresa != "all":
+        # Check if empresa is ID (search by ID) or Name (search by join)
+        if empresa.isdigit():
+            filters.append(models.Servicio.empresa_id == int(empresa))
+        else:
+            query = query.join(models.Empresa)
+            filters.append(models.Empresa.nombre == empresa)
         
     if estado:
-        query = query.filter(models.Servicio.estado == estado)
+        filters.append(models.Servicio.estado == estado)
+
+    if mes and mes != "all":
+        try:
+            year, month = map(int, mes.split("-"))
+            filters.append(extract('year', models.Servicio.created_at) == year)
+            filters.append(extract('month', models.Servicio.created_at) == month)
+        except:
+            pass
+            
+    if desde:
+        try:
+            filters.append(models.Servicio.created_at >= datetime.strptime(desde, "%Y-%m-%d"))
+        except:
+            pass
+    
+    if hasta:
+        try:
+            hasta_date = datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            filters.append(models.Servicio.created_at <= hasta_date)
+        except:
+            pass
+
+    if filters:
+        query = query.filter(*filters)
     
     total = query.count()
     solicitudes = query.order_by(models.Servicio.created_at.desc()).offset((page - 1) * size).limit(size).all()
@@ -334,6 +379,10 @@ async def get_admin_solicitudes(request: Request, estado: str = None, page: int 
         # Fecha en que fue creado el registro y hora a la que fue programado
         fecha_creacion = s.created_at.strftime("%b %d, %I:%M %p") if s.created_at else "No disp."
         
+        # Conductor y vehículo asignado
+        conductor_nombre = s.conductor.nombre if s.conductor else "Sin asignar"
+        vehiculo_placa = s.vehiculo_asignado or "Sin asignar"
+        
         result.append({
             "id": f"SOL-{s.id}",
             "original_id": s.id,
@@ -344,7 +393,9 @@ async def get_admin_solicitudes(request: Request, estado: str = None, page: int 
             "estado": s.estado,
             "fecha": fecha_creacion,
             "hora_programada": s.hora_programada or "Por confirmar",
-            "tipo_servicio": "Corporativo"
+            "tipo_servicio": "Corporativo",
+            "conductor": conductor_nombre,
+            "placa": vehiculo_placa
         })
         
     return {
@@ -598,22 +649,44 @@ async def asignar_servicio(
         background_tasks.add_task(whatsapp.send_whatsapp_text, usuario.whatsapp, msg_pasajero)
 
 
-    # ----- Mensaje al CONDUCTOR -----
+    # ----- Mensaje al CONDUCTOR (Usando Plantilla asignacion_servicio) -----
     raw_tel = conductor.whatsapp or conductor.telefono
     conductor_wa = normalizar_telefono_co(raw_tel) if raw_tel else None
     if conductor_wa:
         pasajero_nombre = usuario.nombre if usuario else "N/A"
-        msg_conductor = (
-            f"\U0001f4e2 *Nuevo servicio asignado - ViajaColombia*\n\n"
-            f"Hola {conductor.nombre}, se te ha asignado un servicio.\n\n"
-            f"\U0001f68c *Vehículo:* {vehiculo_final} \u2014 Placa *{placa_final}*\n"
-            f"\U0001f464 *Pasajero:* {pasajero_nombre}\n\n"
-            f"\U0001f4cd *Dirección de recogida:* {servicio.direccion_origen}\n"
-            f"\U0001f3c1 *Destino final:* {servicio.direccion_destino}\n"
-            f"\u23f0 *Fecha / Hora solicitada:* {hora_str}\n\n"
-            f"El pasajero te presentará un código de verificación al abordaje. \u00a1Éxito en el servicio!"
+        pasajero_tel = usuario.whatsapp if usuario else "N/A"
+        
+        # Preparar componentes para la plantilla asignacion_servicio
+        # {{1}}: Conductor
+        # {{2}}: Automóvil (Marca Modelo Placa)
+        # {{3}}: Usuario (Pasajero)
+        # {{4}}: Teléfono Pasajero
+        # {{5}}: Recoger en (Origen)
+        # {{6}}: Hacia (Destino)
+        # {{7}}: Programado para (Hora)
+        
+        template_components = [
+            {
+                "type": "body",
+                "parameters": [
+                    {"type": "text", "text": conductor.nombre},
+                    {"type": "text", "text": f"{vehiculo_final} - {placa_final}"},
+                    {"type": "text", "text": pasajero_nombre},
+                    {"type": "text", "text": pasajero_tel},
+                    {"type": "text", "text": servicio.direccion_origen},
+                    {"type": "text", "text": servicio.direccion_destino},
+                    {"type": "text", "text": hora_str}
+                ]
+            }
+        ]
+        
+        background_tasks.add_task(
+            whatsapp.send_whatsapp_template, 
+            conductor_wa, 
+            "asignacion_servicio", 
+            template_components,
+            "en" # La plantilla fue creada en English segun el usuario
         )
-        background_tasks.add_task(whatsapp.send_whatsapp_text, conductor_wa, msg_conductor)
 
     logger.info(
         f"Servicio #{servicio.id} asignado al conductor #{conductor.id} "
