@@ -327,19 +327,19 @@ export default function Solicitudes() {
               </Select>
             </div>
 
-            {/* Selector de veh\u00edculo registrado */}
+            {/* Selector de vehículo registrado */}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Veh\u00edculo de la flota
+                Vehículo de la flota
               </label>
               {vehiculos.filter((v) => v.estado === 'activo').length === 0 ? (
                 <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
-                  ⚠️ No hay veh\u00edculos activos registrados. Ve a <strong>Flota</strong> para registrar uno.
+                  ⚠️ No hay vehículos activos registrados. Ve a <strong>Flota</strong> para registrar uno.
                 </p>
               ) : (
                 <Select value={selectedVehiculo} onValueChange={setSelectedVehiculo}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un veh\u00edculo" />
+                    <SelectValue placeholder="Selecciona un vehículo" />
                   </SelectTrigger>
                   <SelectContent>
                     {vehiculos
@@ -355,12 +355,12 @@ export default function Solicitudes() {
               )}
             </div>
 
-            {/* Preview del veh\u00edculo seleccionado */}
+            {/* Preview del vehículo seleccionado */}
             {selectedVehiculo && (() => {
               const veh = vehiculos.find((v) => String(v.id) === selectedVehiculo);
               return veh ? (
                 <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 space-y-1 text-sm">
-                  <p className="font-semibold text-orange-800">🚌 Veh\u00edculo seleccionado</p>
+                  <p className="font-semibold text-orange-800">🚌 Vehículo seleccionado</p>
                   <p>{veh.marca} {veh.modelo} — Placa: <strong className="font-mono">{veh.placa}</strong></p>
                   {veh.capacidad && <p className="text-gray-600">Capacidad: {veh.capacidad} pasajeros · {veh.tipo_servicio}</p>}
                 </div>
