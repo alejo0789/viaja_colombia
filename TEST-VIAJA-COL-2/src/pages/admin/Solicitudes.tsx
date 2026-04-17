@@ -35,7 +35,7 @@ import { useRealtimeSolicitudes } from '@/hooks/useRealtimeSolicitudes';
 export default function Solicitudes() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterEstado, setFilterEstado] = useState('all');
+  const [filterEstado, setFilterEstado] = useState('PENDIENTE,AUTORIZADO');
   const [filterEmpresa, setFilterEmpresa] = useState('all');
   const [page, setPage] = useState(1);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -51,8 +51,12 @@ export default function Solicitudes() {
 
   // Cargar solicitudes con React Query
   const { data: solicitudesData, isLoading: isLoadingSolicitudes } = useQuery({
-    queryKey: ['admin-solicitudes', page],
-    queryFn: () => adminAPI.getSolicitudes({ page, size: 20 }),
+    queryKey: ['admin-solicitudes', page, filterEstado],
+    queryFn: () => adminAPI.getSolicitudes({ 
+      estado: filterEstado === 'all' ? undefined : filterEstado,
+      page, 
+      size: 20 
+    }),
   });
 
   const solicitudes = solicitudesData?.data || [];
@@ -76,8 +80,9 @@ export default function Solicitudes() {
     let filtered = solicitudes;
 
     if (filterEstado !== 'all') {
+      const states = filterEstado.toUpperCase().split(',');
       filtered = filtered.filter(
-        (s) => (s.estado || '').toUpperCase() === filterEstado.toUpperCase()
+        (s) => states.includes((s.estado || '').toUpperCase())
       );
     }
 

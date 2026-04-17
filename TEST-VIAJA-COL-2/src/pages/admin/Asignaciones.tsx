@@ -48,7 +48,7 @@ export default function Asignaciones() {
       filterHasta
     ],
     queryFn: () => adminAPI.getSolicitudes({ 
-      estado: 'ASIGNADO', 
+      estado: 'ASIGNADO,EN_CURSO,COMPLETADO', 
       empresa: filterEmpresa,
       mes: filterMes,
       desde: filterDesde,

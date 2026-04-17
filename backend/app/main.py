@@ -341,7 +341,11 @@ async def get_admin_solicitudes(
             filters.append(models.Empresa.nombre == empresa)
         
     if estado:
-        filters.append(models.Servicio.estado == estado)
+        if "," in estado:
+            state_list = [s.strip().upper() for s in estado.split(",")]
+            filters.append(models.Servicio.estado.in_(state_list))
+        else:
+            filters.append(models.Servicio.estado == estado.upper())
 
     if mes and mes != "all":
         try:
