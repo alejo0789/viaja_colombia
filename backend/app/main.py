@@ -962,7 +962,9 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
         result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema."}
 
     # Procesar resultados encolando las tareas a la API de WhatsApp Graph
-    if isinstance(result, dict):
+    if result is None:
+        result = []
+    elif isinstance(result, dict):
         result = [result]
         
     for item in result:
@@ -1104,6 +1106,8 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
                 response_msg = f"Opción inválida. Por favor elige un número entre 1 y {len(supervisores)}."
         except:
             response_msg = "Por favor, ingresa solo el número de la opción elegida."
+            
+    return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
 
 def _crear_servicio_y_notificar(usuario, session, supervisor, db):
     datos_finales = dict(session.datos_temporales or {})
