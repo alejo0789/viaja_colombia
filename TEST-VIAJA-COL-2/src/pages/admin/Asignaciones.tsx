@@ -229,35 +229,59 @@ export default function Asignaciones() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredSolicitudes.map((s: any) => (
-                  <TableRow key={s.id} className="hover:bg-gray-50">
-                    <TableCell className="font-bold text-blue-900">{s.id}</TableCell>
-                    <TableCell className="text-xs text-gray-500 whitespace-nowrap">{s.fecha}</TableCell>
-                    <TableCell className="text-sm">{s.empresa}</TableCell>
-                    <TableCell className="text-sm">{s.empleado}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-gray-900">{s.conductor}</span>
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded w-fit font-mono font-bold mt-1">
-                          {s.placa}
+                filteredSolicitudes.map((s: any) => {
+                  // Calcular duración en tiempo real si está en curso
+                  let duracionDisplay = s.duracion || 'N/A';
+                  if (s.estado === 'EN_CURSO' && s.hora_inicio_raw) {
+                    const inicio = new Date(s.hora_inicio_raw);
+                    const ahora = new Date();
+                    const diffMin = Math.floor((ahora.getTime() - inicio.getTime()) / 60000);
+                    duracionDisplay = `${diffMin} min (en curso)`;
+                  }
+
+                  return (
+                    <TableRow key={s.id} className="hover:bg-gray-50 transition-colors">
+                      <TableCell className="font-bold text-blue-900">{s.id}</TableCell>
+                      <TableCell className="text-xs text-gray-400">
+                        <div className="flex flex-col">
+                          <span>{s.fecha?.split(',')[0]}</span>
+                          <span className="opacity-70">{s.fecha?.split(',')[1]}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{s.empresa}</TableCell>
+                      <TableCell className="text-sm">{s.empleado}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-gray-900 leading-none">{s.conductor}</span>
+                          <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded w-fit font-mono font-bold">
+                            {s.placa}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm font-semibold text-slate-700">{s.hora_programada}</TableCell>
+                      <TableCell>
+                        <StatusBadge estado={s.estado} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-[11px] font-medium">
+                          <div className="flex items-center gap-1.5 text-emerald-600">
+                            <span className="w-3 h-3 rounded-full bg-emerald-100 flex items-center justify-center text-[8px]">▶</span>
+                            <span>{s.hora_inicio || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-rose-600">
+                            <span className="w-3 h-3 rounded-full bg-rose-100 flex items-center justify-center text-[8px]">■</span>
+                            <span>{s.hora_fin || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`text-sm font-bold ${s.estado === 'EN_CURSO' ? 'text-blue-600 animate-pulse' : 'text-amber-600'}`}>
+                          {duracionDisplay}
                         </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm font-medium">{s.hora_programada}</TableCell>
-                    <TableCell>
-                      <StatusBadge estado={s.estado} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1 text-xs">
-                        <span className="text-emerald-700 font-medium whitespace-nowrap">I: {s.hora_inicio || 'N/A'}</span>
-                        <span className="text-rose-700 font-medium whitespace-nowrap">F: {s.hora_fin || 'N/A'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm font-bold text-amber-600">
-                      {s.duracion || 'N/A'}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
