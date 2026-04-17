@@ -1034,78 +1034,110 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
     elif paso == "PEDIR_HORA":
         current_datos = dict(session.datos_temporales or {})
         current_datos["hora"] = text
-        session.datos_temporales = current_datos
-        flag_modified(session, "datos_temporales")
-        session.paso_actual = "CONFIRMAR_SERVICIO"
-        db.commit()
-        db.refresh(session)
         
-        origen = current_datos.get('origen', 'No especificado')
-        destino = current_datos.get('destino', 'No especificado')
-        hora = current_datos.get('hora', text)
-        
-        response_msg = f"Revisemos tu solicitud:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Fecha/Hora: {hora}\n\nResponde *SI* para confirmar o *CANCELAR* para abortar."
-        
-    elif paso == "CONFIRMAR_SERVICIO":
-        if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
-            # Buscar supervisores de la empresa
-            supervisores = db.query(models.Supervisor).filter(
-                models.Supervisor.empresa_id == usuario.empresa_id,
-                models.Supervisor.activo == True
-            ).all()
+        # Buscar supervisores de la empresa para ver si pedimos área ahora
+        supervisores = db.query(models.Supervisor).filter(
+            models.Supervisor.empresa_id == usuario.empresa_id,
+            models.Supervisor.activo == True
+        ).all()
 
-            if not supervisores:
-                # Si no hay ninguno, guardamos igual pero avisamos
-                datos_finales = dict(session.datos_temporales or {})
-                nuevo_servicio = models.Servicio(
-                    usuario_id=usuario.id,
-                    empresa_id=usuario.empresa_id,
-                    direccion_origen=datos_finales.get("origen", "Desconocido"),
-                    direccion_destino=datos_finales.get("destino", "Desconocido"),
-                    hora_programada=datos_finales.get("hora", "Pronto"),
-                    estado="PENDIENTE"
-                )
-                db.add(nuevo_servicio)
-                session.paso_actual = "INICIO"
-                session.datos_temporales = {}
-                flag_modified(session, "datos_temporales")
-                db.commit()
-                return {"action": "send_message", "phone": usuario.whatsapp, "message": "Tu solicitud ha sido guardada, pero no encontramos supervisores activos para tu empresa. El administrador la revisará manualmente."}
-
-            if len(supervisores) > 1:
-                # Listar áreas si hay más de uno
-                session.paso_actual = "PEDIR_AREA"
-                db.commit()
-                
-                areas_list = ""
-                for i, s in enumerate(supervisores, 1):
-                    area_name = s.area or f"Supervisor {i}"
-                    areas_list += f"{i}. {area_name}\n"
-                
-                response_msg = f"Tu empresa tiene varios supervisores. Por favor, escribe el *número* del área que debe autorizar tu viaje:\n\n{areas_list}"
-                return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
-            else:
-                # Solo hay uno, procedemos normal
-                supervisor = supervisores[0]
-                return _crear_servicio_y_notificar(usuario, session, supervisor, db)
+        if len(supervisores) > 1:
+            session.datos_temporales = current_datos
+            flag_modified(session, "datos_temporales")
+            session.paso_actual = "PEDIR_AREA"
+            db.commit()
+            
+            areas_list = ""
+            for i, s in enumerate(supervisores, 1):
+                area_name = (s.area or s.nombre or f"Supervisor {i}").strip()
+                areas_list += f"{i}. {area_name}\n"
+            
+            response_msg = f"Perfecto. Tu empresa tiene varios supervisores. ¿Qué área debe autorizar este viaje?\n\n{areas_list}"
         else:
-            response_msg = "No reconocimos tu respuesta. Responde *SI* para confirmar o *CANCELAR*."
-
+            if len(supervisores) == 1:
+                current_datos["supervisor_id"] = supervisores[0].id
+                current_datos["area"] = supervisores[0].area or supervisores[0].nombre
+            
+            session.datos_temporales = current_datos
+            flag_modified(session, "datos_temporales")
+            session.paso_actual = "CONFIRMAR_SERVICIO"
+            db.commit()
+            
+            origen = current_datos.get('origen', 'No especificado')
+            destino = current_datos.get('destino', 'No especificado')
+            hora = current_datos.get('hora', text)
+            
+            response_msg = f"Revisemos tu solicitud:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Fecha/Hora: {hora}\n\nResponde *SI* para confirmar o *CANCELAR* para abortar."
+        
     elif paso == "PEDIR_AREA":
         supervisores = db.query(models.Supervisor).filter(
             models.Supervisor.empresa_id == usuario.empresa_id,
             models.Supervisor.activo == True
         ).all()
         
+        selected_supervisor = None
         try:
-            opcion = int(text.strip().split(".")[0]) - 1 # Maneja "1", "1.", "1 area..."
-            if 0 <= opcion < len(supervisores):
-                supervisor = supervisores[opcion]
+            text_clean = "".join(filter(str.isdigit, text))
+            if text_clean:
+                opcion = int(text_clean) - 1
+                if 0 <= opcion < len(supervisores):
+                    selected_supervisor = supervisores[opcion]
+            
+            if not selected_supervisor:
+                # Buscar por nombre
+                for s in supervisores:
+                    if s.area and s.area.lower() in text.lower():
+                        selected_supervisor = s
+                        break
+            
+            if selected_supervisor:
+                current_datos = dict(session.datos_temporales or {})
+                current_datos["supervisor_id"] = selected_supervisor.id
+                current_datos["area"] = selected_supervisor.area or selected_supervisor.nombre
+                session.datos_temporales = current_datos
+                flag_modified(session, "datos_temporales")
+                session.paso_actual = "CONFIRMAR_SERVICIO"
+                db.commit()
+                
+                origen = current_datos.get('origen', 'N/A')
+                destino = current_datos.get('destino', 'N/A')
+                hora = current_datos.get('hora', 'N/A')
+                area = current_datos.get('area', 'N/A')
+                
+                response_msg = (
+                    f"Revisemos tu solicitud:\n"
+                    f"📍 Origen: {origen}\n"
+                    f"🏁 Destino: {destino}\n"
+                    f"⏰ Fecha/Hora: {hora}\n"
+                    f"🏢 Área: {area}\n\n"
+                    f"Responde *SI* para confirmar o *CANCELAR*."
+                )
+            else:
+                response_msg = "No entendí tu elección. Por favor escribe el número de la opción (ej: 1)."
+        except:
+            response_msg = "Por favor, ingresa el número de la opción elegida."
+
+    elif paso == "CONFIRMAR_SERVICIO":
+        if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
+            datos_finales = dict(session.datos_temporales or {})
+            supervisor_id = datos_finales.get("supervisor_id")
+            
+            if supervisor_id:
+                supervisor = db.query(models.Supervisor).filter(models.Supervisor.id == supervisor_id).first()
+            else:
+                # Fallback por si acaso
+                supervisor = db.query(models.Supervisor).filter(
+                    models.Supervisor.empresa_id == usuario.empresa_id,
+                    models.Supervisor.activo == True
+                ).first()
+            
+            if supervisor:
                 return _crear_servicio_y_notificar(usuario, session, supervisor, db)
             else:
-                response_msg = f"Opción inválida. Por favor elige un número entre 1 y {len(supervisores)}."
-        except:
-            response_msg = "Por favor, ingresa solo el número de la opción elegida."
+                # Crear sin supervisor especifico (el admin lo verá en el dashboard)
+                return _crear_servicio_y_notificar(usuario, session, None, db)
+        else:
+            response_msg = "No reconocimos tu respuesta. Responde *SI* para confirmar o *CANCELAR*."
             
     return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
 
