@@ -78,6 +78,9 @@ export default function Asignaciones() {
       Origen: s.origen,
       Destino: s.destino,
       'Fecha Programada': s.hora_programada,
+      'Hora Inicio': s.hora_inicio || 'N/A',
+      'Hora Fin': s.hora_fin || 'N/A',
+      Duracion: s.duracion || 'N/A',
       Conductor: s.conductor || 'N/A',
       Placa: s.placa || 'N/A',
       Estado: s.estado
@@ -208,19 +211,20 @@ export default function Asignaciones() {
                 <TableHead>Empresa</TableHead>
                 <TableHead>Pasajero</TableHead>
                 <TableHead>Conductor / Placa</TableHead>
-                <TableHead>Origen / Destino</TableHead>
-                <TableHead>Fecha Programada</TableHead>
+                <TableHead>Programado</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Inicio / Fin</TableHead>
+                <TableHead>Duración</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10">Cargando asignaciones...</TableCell>
+                  <TableCell colSpan={10} className="text-center py-10">Cargando asignaciones...</TableCell>
                 </TableRow>
               ) : filteredSolicitudes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={10} className="text-center py-10 text-gray-400">
                     No se encontraron servicios asignados
                   </TableCell>
                 </TableRow>
@@ -239,15 +243,18 @@ export default function Asignaciones() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs max-w-[200px]">
-                      <div className="flex flex-col gap-1">
-                        <span className="truncate"><strong>O:</strong> {s.origen}</span>
-                        <span className="truncate"><strong>D:</strong> {s.destino}</span>
-                      </div>
-                    </TableCell>
                     <TableCell className="text-sm font-medium">{s.hora_programada}</TableCell>
                     <TableCell>
                       <StatusBadge estado={s.estado} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <span className="text-emerald-700 font-medium whitespace-nowrap">I: {s.hora_inicio || 'N/A'}</span>
+                        <span className="text-rose-700 font-medium whitespace-nowrap">F: {s.hora_fin || 'N/A'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm font-bold text-amber-600">
+                      {s.duracion || 'N/A'}
                     </TableCell>
                   </TableRow>
                 ))

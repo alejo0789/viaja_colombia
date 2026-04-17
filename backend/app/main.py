@@ -401,6 +401,9 @@ async def get_admin_solicitudes(
             "estado": s.estado,
             "fecha": fecha_creacion,
             "hora_programada": s.hora_programada or "Por confirmar",
+            "hora_inicio": s.hora_inicio.strftime("%b %d, %I:%M %p") if s.hora_inicio else "N/A",
+            "hora_fin": s.hora_fin.strftime("%b %d, %I:%M %p") if s.hora_fin else "N/A",
+            "duracion": f"{int((s.hora_fin - s.hora_inicio).total_seconds() / 60)} min" if s.hora_inicio and s.hora_fin else "N/A",
             "tipo_servicio": "Corporativo",
             "conductor": conductor_nombre,
             "placa": vehiculo_placa
@@ -1031,9 +1034,18 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
         (models.Usuario.whatsapp == f"+57{local_phone}")
     ).first()
 
+    conductor = db.query(models.Conductor).filter(
+        (models.Conductor.whatsapp == raw_phone) | 
+        (models.Conductor.whatsapp == local_phone) |
+        (models.Conductor.whatsapp == f"57{local_phone}") |
+        (models.Conductor.whatsapp == f"+57{local_phone}")
+    ).first()
+
     # Enrutamiento Inteligente
     if is_supervisor_cmd and supervisor:
         result = handle_supervisor_message(supervisor, text, db)
+    elif conductor:
+        result = handle_conductor_message(conductor, text, db)
     elif usuario:
         # Si no es un comando de supervisor pero está registrado como empleado, le iniciamos el flujo de empleado (pedir viaje)
         result = handle_user_session(usuario, text, db)
@@ -1337,6 +1349,107 @@ def handle_supervisor_message(supervisor: models.Supervisor, text: str, db: Sess
             return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Formato incorrecto. Usa: RECHAZAR [numero]"}
         
     return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Comando de supervisor no reconocido. (Usa: AUTORIZADOR [num] o RECHAZAR [num])"}
+    
+def handle_conductor_message(conductor: models.Conductor, text: str, db: Session):
+    session = db.query(models.WaSession).filter(models.WaSession.whatsapp_number == conductor.whatsapp).first()
+    if not session:
+        session = models.WaSession(whatsapp_number=conductor.whatsapp, paso_actual="INICIO", datos_temporales={})
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+    paso = session.paso_actual
+    text_clean = "".join(filter(str.isdigit, text))
+
+    # Buscar servicio ASIGNADO para iniciar
+    if paso == "INICIO":
+        servicio = db.query(models.Servicio).filter(
+            models.Servicio.conductor_id == conductor.id,
+            models.Servicio.estado == "ASIGNADO"
+        ).order_by(models.Servicio.created_at.desc()).first()
+
+        if not servicio:
+            # Quizás ya tiene uno en curso y quiere finalizarlo?
+            servicio_en_curso = db.query(models.Servicio).filter(
+                models.Servicio.conductor_id == conductor.id,
+                models.Servicio.estado == "EN_CURSO"
+            ).order_by(models.Servicio.created_at.desc()).first()
+
+            if servicio_en_curso:
+                session.paso_actual = "FINALIZAR_SERVICIO"
+                session.datos_temporales = {"servicio_id": servicio_en_curso.id}
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": f"Tienes el servicio #{servicio_en_curso.id} en curso. Para finalizarlo, ingresa los *últimos 4 dígitos de la cédula del pasajero*."}
+            
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, no tienes servicios asignados pendientes por iniciar en este momento."}
+
+        # Flujo de INICIAR SERVICIO
+        if len(text_clean) == 6:
+            if text_clean == servicio.codigo_verificacion:
+                servicio.estado = "EN_CURSO"
+                servicio.hora_inicio = datetime.now()
+                session.paso_actual = "FINALIZAR_SERVICIO"
+                session.datos_temporales = {"servicio_id": servicio.id}
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                
+                # Notificar al pasajero
+                usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
+                notif_usuario = {"action": "send_message", "phone": usuario.whatsapp, "message": "🚖 Tu servicio ha iniciado. ¡Buen viaje!"} if usuario else None
+                
+                res = [{"action": "send_message", "phone": conductor.whatsapp, "message": f"Servicio #{servicio.id} INICIADO ✅. Cuando llegues al destino, ingresa los *últimos 4 dígitos de la cédula del pasajero* para finalizar."}]
+                if notif_usuario: res.append(notif_usuario)
+                return res
+            else:
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": "Código de verificación incorrecto. Por favor verifícalo con el pasajero e ingrésalo de nuevo."}
+        else:
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": f"Tienes el servicio #{servicio.id} asignado. Por favor ingresa el *código de verificación de 6 dígitos* que te proporcionará el pasajero para iniciar el viaje."}
+
+    elif paso == "FINALIZAR_SERVICIO":
+        servicio_id = session.datos_temporales.get("servicio_id")
+        servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+        
+        if not servicio or servicio.estado != "EN_CURSO":
+            session.paso_actual = "INICIO"
+            session.datos_temporales = {}
+            flag_modified(session, "datos_temporales")
+            db.commit()
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": "No se encontró el servicio en curso. Por favor inicia de nuevo."}
+
+        if len(text_clean) == 4:
+            usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
+            cedula_valida = False
+            
+            if usuario and usuario.cedula:
+                # Verificar ultimos 4 digitos
+                if usuario.cedula.endswith(text_clean):
+                    cedula_valida = True
+            else:
+                # Si no hay cédula registrada, permitimos cualquier 4 dígitos por ahora (o podrías denegarlo)
+                # El usuario pidió "ingresando los 4 ultimos digitos", asumiremos que si no hay cédula, no podemos validar estrictamente pero finalizamos.
+                cedula_valida = True 
+
+            if cedula_valida:
+                servicio.estado = "COMPLETADO"
+                servicio.hora_fin = datetime.now()
+                session.paso_actual = "INICIO"
+                session.datos_temporales = {}
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                
+                # Notificar al pasajero
+                notif_usuario = {"action": "send_message", "phone": usuario.whatsapp, "message": "✅ Tu servicio ha finalizado. Gracias por viajar con ViajaColombia."} if usuario else None
+                
+                res = [{"action": "send_message", "phone": conductor.whatsapp, "message": f"Servicio #{servicio.id} FINALIZADO ✅. ¡Gracias por tu excelente labor!"}]
+                if notif_usuario: res.append(notif_usuario)
+                return res
+            else:
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": "Los dígitos no coinciden. Por favor ingresa los últimos 4 dígitos de la cédula del pasajero correctamente."}
+        else:
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": "Por favor ingresa los *4 últimos dígitos de la cédula del pasajero* para finalizar el servicio."}
+
+    return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, ¿en qué puedo ayudarte?"}
 
 # --- AUTORIZADOR (SUPERVISOR) ROUTES ---
 

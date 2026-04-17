@@ -50,6 +50,7 @@ class Usuario(Base):
     whatsapp = Column(String, unique=True, index=True) # Phone with country code
     email = Column(String, nullable=True)
     cargo = Column(String, nullable=True)
+    cedula = Column(String, nullable=True) # Last 4 digits or full for verification
     activo = Column(Boolean, default=True)
     
     empresa = relationship("Empresa", back_populates="usuarios")
@@ -88,6 +89,9 @@ class Servicio(Base):
     
     encuesta_calificacion = Column(Integer, nullable=True)
     encuesta_comentario = Column(String, nullable=True)
+    
+    hora_inicio = Column(DateTime(timezone=True), nullable=True)
+    hora_fin = Column(DateTime(timezone=True), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
