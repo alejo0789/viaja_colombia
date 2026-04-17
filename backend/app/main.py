@@ -720,6 +720,7 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
             "supervisores": [{
                 "id": s.id,
                 "nombre": s.nombre,
+                "area": s.area,
                 "whatsapp": s.whatsapp
             } for s in supervisores],
             "usuarios_count": usuarios_count
@@ -764,42 +765,58 @@ async def create_admin_empresa(data: dict, db: Session = Depends(get_db)):
 
 @app.post("/api/admin/supervisores")
 async def create_admin_supervisor(data: dict, db: Session = Depends(get_db)):
+    # 0. Validar duplicados antes de insertar para dar error limpio
+    whatsapp = data.get("whatsapp")
+    email = data.get("email", "").lower().strip()
+    
+    if db.query(models.Supervisor).filter(models.Supervisor.whatsapp == whatsapp).first():
+        throw_http_err(400, f"El número de WhatsApp {whatsapp} ya está registrado en otro supervisor")
+        
+    if email and db.query(models.Supervisor).filter(models.Supervisor.email == email).first():
+        throw_http_err(400, f"El email {email} ya está registrado en otro supervisor")
+
     # 1. Crear el registro de Supervisor (para WhatsApp)
     supervisor = models.Supervisor(
         nombre=data.get("nombre"),
-        whatsapp=data.get("whatsapp"),
+        area=data.get("area"),
+        whatsapp=whatsapp,
         empresa_id=data.get("empresa_id"),
-        email=data.get("email")
+        email=email
     )
-    db.add(supervisor)
     
-    # 2. Crear el acceso al Dashboard (UsuarioDashboard)
-    email = data.get("email", "").lower().strip()
-    password = data.get("password")
-    
-    if email and password:
-        # Verificar si ya existe el usuario dashboard
-        existing_user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
-        if not existing_user:
-            new_dashboard_user = models.UsuarioDashboard(
-                email=email,
-                nombre=data.get("nombre"),
-                password_hash=auth.get_password_hash(password),
-                rol=4, # AUTORIZADOR
-                estado="activo",
-                empresa_cliente_id=data.get("empresa_id")
-            )
-            db.add(new_dashboard_user)
-        else:
-            # Si ya existe, nos aseguramos que tenga el rol y empresa correcta
-            existing_user.rol = 4
-            existing_user.empresa_cliente_id = data.get("empresa_id")
-            if password:
-                existing_user.password_hash = auth.get_password_hash(password)
+    try:
+        db.add(supervisor)
+        
+        # 2. Crear el acceso al Dashboard (UsuarioDashboard)
+        password = data.get("password")
+        
+        if email and password:
+            # Verificar si ya existe el usuario dashboard
+            existing_user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.email == email).first()
+            if not existing_user:
+                new_dashboard_user = models.UsuarioDashboard(
+                    email=email,
+                    nombre=data.get("nombre"),
+                    password_hash=auth.get_password_hash(password),
+                    rol=4, # AUTORIZADOR
+                    estado="activo",
+                    empresa_cliente_id=data.get("empresa_id")
+                )
+                db.add(new_dashboard_user)
+            else:
+                # Si ya existe, nos aseguramos que tenga el rol y empresa correcta
+                existing_user.rol = 4
+                existing_user.empresa_cliente_id = data.get("empresa_id")
+                if password:
+                    existing_user.password_hash = auth.get_password_hash(password)
 
-    db.commit()
-    db.refresh(supervisor)
-    return supervisor
+        db.commit()
+        db.refresh(supervisor)
+        return supervisor
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating supervisor: {e}")
+        throw_http_err(400, f"Error al crear el supervisor: {str(e)}")
 
 @app.post("/api/admin/usuarios")
 async def create_admin_usuario(data: dict, db: Session = Depends(get_db)):
@@ -824,7 +841,7 @@ async def update_admin_supervisor(id: int, data: dict, db: Session = Depends(get
     
     # Actualizar campos del Supervisor
     for key, value in data.items():
-        if key != "password": # El modelo Supervisor no tiene password
+        if key != "password" and hasattr(supervisor, key):
             setattr(supervisor, key, value)
     
     # Sincronizar con el Usuario del Dashboard si existe
@@ -1029,73 +1046,126 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
         
     elif paso == "CONFIRMAR_SERVICIO":
         if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
-            datos_finales = dict(session.datos_temporales or {})
-            
-            # Crear el servicio
-            nuevo_servicio = models.Servicio(
-                usuario_id=usuario.id,
-                empresa_id=usuario.empresa_id,
-                direccion_origen=datos_finales.get("origen", "Desconocido"),
-                direccion_destino=datos_finales.get("destino", "Desconocido"),
-                hora_programada=datos_finales.get("hora", "Pronto"),
-                estado="PENDIENTE"
-            )
-            db.add(nuevo_servicio)
-            
-            # Resetear sesion
-            session.paso_actual = "INICIO"
-            session.datos_temporales = {}
-            flag_modified(session, "datos_temporales")
-            db.commit()
-            
-            # Buscar supervisor de la empresa
-            supervisor = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == usuario.empresa_id).first()
-            if supervisor:
-                db.refresh(nuevo_servicio)
-                hora_str = datos_finales.get('hora', 'No especificado')
+            # Buscar supervisores de la empresa
+            supervisores = db.query(models.Supervisor).filter(
+                models.Supervisor.empresa_id == usuario.empresa_id,
+                models.Supervisor.activo == True
+            ).all()
+
+            if not supervisores:
+                # Si no hay ninguno, guardamos igual pero avisamos
+                datos_finales = dict(session.datos_temporales or {})
+                nuevo_servicio = models.Servicio(
+                    usuario_id=usuario.id,
+                    empresa_id=usuario.empresa_id,
+                    direccion_origen=datos_finales.get("origen", "Desconocido"),
+                    direccion_destino=datos_finales.get("destino", "Desconocido"),
+                    hora_programada=datos_finales.get("hora", "Pronto"),
+                    estado="PENDIENTE"
+                )
+                db.add(nuevo_servicio)
+                session.paso_actual = "INICIO"
+                session.datos_temporales = {}
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                return {"action": "send_message", "phone": usuario.whatsapp, "message": "Tu solicitud ha sido guardada, pero no encontramos supervisores activos para tu empresa. El administrador la revisará manualmente."}
+
+            if len(supervisores) > 1:
+                # Listar áreas si hay más de uno
+                session.paso_actual = "PEDIR_AREA"
+                db.commit()
                 
-                # Preparar componentes de la plantilla autorizacion_supervisor
-                components = [
-                    {
-                        "type": "body",
-                        "parameters": [
-                            {"type": "text", "text": str(nuevo_servicio.id)},
-                            {"type": "text", "text": usuario.nombre},
-                            {"type": "text", "text": nuevo_servicio.direccion_origen},
-                            {"type": "text", "text": nuevo_servicio.direccion_destino},
-                            {"type": "text", "text": hora_str}
-                        ]
-                    },
-                    {
-                        "type": "button",
-                        "sub_type": "quick_reply",
-                        "index": 0,
-                        "parameters": [{"type": "payload", "payload": f"AUTORIZAR {nuevo_servicio.id}"}]
-                    },
-                    {
-                        "type": "button",
-                        "sub_type": "quick_reply",
-                        "index": 1,
-                        "parameters": [{"type": "payload", "payload": f"RECHAZAR {nuevo_servicio.id}"}]
-                    }
-                ]
+                areas_list = ""
+                for i, s in enumerate(supervisores, 1):
+                    area_name = s.area or f"Supervisor {i}"
+                    areas_list += f"{i}. {area_name}\n"
                 
-                # Enviar confirmación al usuario y plantilla al supervisor
-                # En el return principal de handle_user_session procesamos esto
-                return [
-                    {"action": "send_message", "phone": usuario.whatsapp, "message": "Tu solicitud ha sido enviada al supervisor para su autorización. Te notificaremos pronto."},
-                    {
-                        "action": "send_template", 
-                        "phone": supervisor.whatsapp, 
-                        "template_name": "autorizacion_supervisor",
-                        "components": components,
-                        "language": "es_CO"
-                    }
-                ]
+                response_msg = f"Tu empresa tiene varios supervisores. Por favor, escribe el *número* del área que debe autorizar tu viaje:\n\n{areas_list}"
+                return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
             else:
-                response_msg = "Solicitud guardada en sistema, pero no encontramos supervisor asignado para esta empresa."
+                # Solo hay uno, procedemos normal
+                supervisor = supervisores[0]
+                return _crear_servicio_y_notificar(usuario, session, supervisor, db)
         else:
             response_msg = "No reconocimos tu respuesta. Responde *SI* para confirmar o *CANCELAR*."
+
+    elif paso == "PEDIR_AREA":
+        supervisores = db.query(models.Supervisor).filter(
+            models.Supervisor.empresa_id == usuario.empresa_id,
+            models.Supervisor.activo == True
+        ).all()
+        
+        try:
+            opcion = int(text.strip().split(".")[0]) - 1 # Maneja "1", "1.", "1 area..."
+            if 0 <= opcion < len(supervisores):
+                supervisor = supervisores[opcion]
+                return _crear_servicio_y_notificar(usuario, session, supervisor, db)
+            else:
+                response_msg = f"Opción inválida. Por favor elige un número entre 1 y {len(supervisores)}."
+        except:
+            response_msg = "Por favor, ingresa solo el número de la opción elegida."
+
+def _crear_servicio_y_notificar(usuario, session, supervisor, db):
+    datos_finales = dict(session.datos_temporales or {})
+    
+    # Crear el servicio
+    nuevo_servicio = models.Servicio(
+        usuario_id=usuario.id,
+        empresa_id=usuario.empresa_id,
+        direccion_origen=datos_finales.get("origen", "Desconocido"),
+        direccion_destino=datos_finales.get("destino", "Desconocido"),
+        hora_programada=datos_finales.get("hora", "Pronto"),
+        estado="PENDIENTE"
+    )
+    db.add(nuevo_servicio)
+    db.commit()
+    db.refresh(nuevo_servicio)
+    
+    # Resetear sesion
+    session.paso_actual = "INICIO"
+    session.datos_temporales = {}
+    flag_modified(session, "datos_temporales")
+    db.commit()
+    
+    hora_str = datos_finales.get('hora', 'No especificado')
+    
+    # Preparar componentes de la plantilla autorizacion_supervisor
+    components = [
+        {
+            "type": "body",
+            "parameters": [
+                {"type": "text", "text": str(nuevo_servicio.id)},
+                {"type": "text", "text": usuario.nombre},
+                {"type": "text", "text": nuevo_servicio.direccion_origen},
+                {"type": "text", "text": nuevo_servicio.direccion_destino},
+                {"type": "text", "text": hora_str}
+            ]
+        },
+        {
+            "type": "button",
+            "sub_type": "quick_reply",
+            "index": 0,
+            "parameters": [{"type": "payload", "payload": f"AUTORIZAR {nuevo_servicio.id}"}]
+        },
+        {
+            "type": "button",
+            "sub_type": "quick_reply",
+            "index": 1,
+            "parameters": [{"type": "payload", "payload": f"RECHAZAR {nuevo_servicio.id}"}]
+        }
+    ]
+    
+    area_msg = f" del área {supervisor.area}" if supervisor.area else ""
+    return [
+        {"action": "send_message", "phone": usuario.whatsapp, "message": f"Tu solicitud ha sido enviada al supervisor{area_msg} para su autorización. Te notificaremos pronto."},
+        {
+            "action": "send_template", 
+            "phone": supervisor.whatsapp, 
+            "template_name": "autorizacion_supervisor",
+            "components": components,
+            "language": "es_CO"
+        }
+    ]
             
     return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
 

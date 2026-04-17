@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Toaster } from 'sonner';
 
 // Pages
 import Index from './pages/Index';
@@ -55,6 +56,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
+        <Toaster position="top-right" richColors />
         <AuthProvider>
           <Routes>
             {/* Public Routes */}

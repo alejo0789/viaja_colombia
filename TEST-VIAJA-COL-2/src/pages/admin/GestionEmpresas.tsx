@@ -23,6 +23,7 @@ import {
   Ban
 } from 'lucide-react';
 import { adminAPI } from '@/services/api';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ import { Label } from "@/components/ui/label";
 interface Supervisor {
   id: number;
   nombre: string;
+  area: string;
   whatsapp: string;
 }
 
@@ -79,6 +81,7 @@ export default function GestionEmpresas() {
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
   const [newMember, setNewMember] = useState({
     nombre: '',
+    area: '',
     whatsapp: '',
     cargo: '',
     email: '',
@@ -148,7 +151,7 @@ export default function GestionEmpresas() {
     setMemberType(type);
     setTargetEmpresaId(empresaId);
     setEditingMemberId(null);
-    setNewMember({ nombre: '', whatsapp: '', cargo: '', email: '', password: '' });
+    setNewMember({ nombre: '', area: '', whatsapp: '', cargo: '', email: '', password: '' });
     setIsAddMemberModalOpen(true);
   };
 
@@ -158,6 +161,7 @@ export default function GestionEmpresas() {
     setEditingMemberId(member.id);
     setNewMember({ 
       nombre: member.nombre || '',
+      area: member.area || '',
       whatsapp: member.whatsapp || '', 
       cargo: member.cargo || '',
       email: member.email || '',
@@ -176,12 +180,14 @@ export default function GestionEmpresas() {
         } else {
           await adminAPI.updateUsuario(editingMemberId, newMember);
         }
+        toast.success('Miembro actualizado exitosamente');
       } else {
         if (memberType === 'SUPERVISOR') {
           await adminAPI.createSupervisor({ ...newMember, empresa_id: targetEmpresaId });
         } else {
           await adminAPI.createUsuario({ ...newMember, empresa_id: targetEmpresaId });
         }
+        toast.success('Miembro añadido exitosamente');
       }
       setIsAddMemberModalOpen(false);
       if (isBulkUsersModalOpen) {
@@ -189,8 +195,10 @@ export default function GestionEmpresas() {
       } else {
           await fetchEmpresas();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving member:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Error al guardar el miembro';
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -319,7 +327,10 @@ export default function GestionEmpresas() {
                         <div key={s.id} className="bg-white p-4 rounded-lg shadow-sm flex justify-between items-center group">
                           <div>
                             <p className="font-semibold text-gray-900">{s.nombre}</p>
-                            <p className="text-sm text-gray-500">WhatsApp: {s.whatsapp}</p>
+                            <div className="flex gap-2 text-sm text-gray-500">
+                              <span>WhatsApp: {s.whatsapp}</span>
+                              {s.area && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">{s.area}</span>}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2">
                             {s.activo ? (
@@ -645,6 +656,18 @@ export default function GestionEmpresas() {
                 onChange={(e) => setNewMember({...newMember, whatsapp: e.target.value})}
               />
             </div>
+            {memberType === 'SUPERVISOR' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="m_area" className="text-right">Área</Label>
+                <Input 
+                  id="m_area" 
+                  placeholder="Ej: Financiera, RRHH..."
+                  className="col-span-3" 
+                  value={newMember.area}
+                  onChange={(e) => setNewMember({...newMember, area: e.target.value})}
+                />
+              </div>
+            )}
             {memberType === 'SUPERVISOR' && (
               <>
                 <div className="grid grid-cols-4 items-center gap-4">

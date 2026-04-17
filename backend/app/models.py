@@ -34,6 +34,7 @@ class Supervisor(Base):
     id = Column(Integer, primary_key=True, index=True)
     empresa_id = Column(Integer, ForeignKey("companies.id"))
     nombre = Column(String)
+    area = Column(String, nullable=True) # Area name for multi-supervisor companies
     whatsapp = Column(String, unique=True, index=True) # Phone with country code
     email = Column(String, nullable=True)
     activo = Column(Boolean, default=True)
