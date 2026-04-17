@@ -25,6 +25,8 @@ export const adminAPI = {
 
   getSolicitudes: async (filters?: {
     estado?: string;
+    empresa?: string;
+    mes?: string;
     desde?: string;
     hasta?: string;
     page?: number;
@@ -32,6 +34,8 @@ export const adminAPI = {
   }) => {
     const params = new URLSearchParams();
     if (filters?.estado) params.append('estado', filters.estado);
+    if (filters?.empresa) params.append('empresa', filters.empresa);
+    if (filters?.mes) params.append('mes', filters.mes);
     if (filters?.desde) params.append('desde', filters.desde);
     if (filters?.hasta) params.append('hasta', filters.hasta);
     if (filters?.page) params.append('page', filters.page.toString());

@@ -345,29 +345,37 @@ async def get_admin_solicitudes(
 
     if mes and mes != "all":
         try:
+            logger.info(f"DEBUG Filter: applying month filter for {mes}")
             year, month = map(int, mes.split("-"))
             filters.append(extract('year', models.Servicio.created_at) == year)
             filters.append(extract('month', models.Servicio.created_at) == month)
-        except:
+        except Exception as e:
+            logger.error(f"DEBUG Error: failed to parse mes '{mes}': {e}")
             pass
             
     if desde:
         try:
+            logger.info(f"DEBUG Filter: applying desde {desde}")
             filters.append(models.Servicio.created_at >= datetime.strptime(desde, "%Y-%m-%d"))
-        except:
+        except Exception as e:
+            logger.error(f"DEBUG Error: failed to parse desde '{desde}': {e}")
             pass
     
     if hasta:
         try:
+            logger.info(f"DEBUG Filter: applying hasta {hasta}")
             hasta_date = datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
             filters.append(models.Servicio.created_at <= hasta_date)
-        except:
+        except Exception as e:
+            logger.error(f"DEBUG Error: failed to parse hasta '{hasta}': {e}")
             pass
 
     if filters:
+        logger.info(f"DEBUG Filter: applying {len(filters)} filters to query")
         query = query.filter(*filters)
     
     total = query.count()
+    logger.info(f"DEBUG Result: {total} solicitudes found after filtering")
     solicitudes = query.order_by(models.Servicio.created_at.desc()).offset((page - 1) * size).limit(size).all()
     
     # Formatear para el frontend con datos reales de base de datos
