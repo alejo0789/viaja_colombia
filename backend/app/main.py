@@ -642,7 +642,7 @@ async def asignar_servicio(
             f"\U0001f3c1 *Destino:* {servicio.direccion_destino}\n"
             f"\u23f0 *Fecha / Hora:* {hora_str}\n\n"
             f"\U0001f68c *Vehículo:* {vehiculo_final} \u2014 Placa *{placa_final}*\n"
-            f"\U0001f464 *Conductor:* {conductor.nombre}\n\n"
+            f"\U0001f464 *Conductor:* {conductor.nombre} ({conductor.telefono})\n\n"
             f"\U0001f511 *Código de verificación: {codigo}*\n"
             f"Presenta este código al conductor cuando llegue a recogerte."
         )
