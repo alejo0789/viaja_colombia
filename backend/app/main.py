@@ -413,7 +413,8 @@ async def get_admin_solicitudes(
             "tipo_servicio": "Corporativo",
             "conductor": conductor_nombre,
             "placa": vehiculo_placa,
-            "observaciones": s.observaciones or ""
+            "observaciones": s.observaciones or "",
+            "precio": s.precio or 0
         })
         
     return {
@@ -422,6 +423,20 @@ async def get_admin_solicitudes(
         "page": page,
         "size": size
     }
+
+@app.patch("/api/admin/solicitudes/{solicitud_id}")
+async def update_admin_solicitud(solicitud_id: int, payload: dict, db: Session = Depends(get_db)):
+    servicio = db.query(models.Servicio).filter(models.Servicio.id == solicitud_id).first()
+    if not servicio:
+        throw_http_err(404, "Solicitud no encontrada")
+    
+    if "precio" in payload:
+        servicio.precio = payload["precio"]
+    if "estado" in payload:
+        servicio.estado = payload["estado"]
+        
+    db.commit()
+    return {"status": "updated", "id": solicitud_id}
 
     return result
 

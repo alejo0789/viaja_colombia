@@ -216,16 +216,17 @@ export default function Asignaciones() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Inicio / Fin</TableHead>
                 <TableHead>Duración</TableHead>
+                <TableHead className="w-[120px]">Precio ($)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10">Cargando asignaciones...</TableCell>
+                  <TableCell colSpan={11} className="text-center py-10">Cargando asignaciones...</TableCell>
                 </TableRow>
               ) : filteredSolicitudes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={11} className="text-center py-10 text-gray-400">
                     No se encontraron servicios asignados
                   </TableCell>
                 </TableRow>
@@ -239,6 +240,17 @@ export default function Asignaciones() {
                     const diffMin = Math.floor((ahora.getTime() - inicio.getTime()) / 60000);
                     duracionDisplay = `${diffMin} min (en curso)`;
                   }
+
+                  const handleUpdatePrice = async (newPrice: string) => {
+                    const priceValue = parseInt(newPrice.replace(/[^0-9]/g, '')) || 0;
+                    try {
+                      await adminAPI.updateSolicitud(s.original_id, { precio: priceValue });
+                      // Invalidate query to refresh data
+                      queryClient.invalidateQueries({ queryKey: ['admin-solicitudes-asignadas'] });
+                    } catch (error) {
+                      console.error('Error updating price:', error);
+                    }
+                  };
 
                   return (
                     <TableRow key={s.id} className="hover:bg-gray-50 transition-colors">
@@ -282,6 +294,24 @@ export default function Asignaciones() {
                         <span className={`text-sm font-bold ${s.estado === 'EN_CURSO' ? 'text-blue-600 animate-pulse' : 'text-amber-600'}`}>
                           {duracionDisplay}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2 text-gray-400 text-xs">$</span>
+                          <Input
+                            type="text"
+                            defaultValue={s.precio === 0 ? '' : s.precio.toLocaleString()}
+                            placeholder="0"
+                            className="h-8 pl-5 pr-2 text-sm font-bold text-emerald-700 bg-emerald-50/50 border-emerald-100 focus:border-emerald-300 focus:ring-emerald-200"
+                            onBlur={(e) => handleUpdatePrice(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleUpdatePrice((e.target as HTMLInputElement).value);
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                          />
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

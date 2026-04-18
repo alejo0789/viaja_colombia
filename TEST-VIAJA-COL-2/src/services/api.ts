@@ -46,6 +46,13 @@ export const adminAPI = {
     );
   },
 
+  updateSolicitud: async (id: number, data: any) => {
+    return apiRequest(`/api/admin/solicitudes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   asignarServicio: async (solicitudId: string | number, conductorId: string | number, vehiculo?: string, placa?: string) => {
     return apiRequest('/api/admin/asignar-servicio', {
       method: 'POST',
@@ -438,6 +445,13 @@ export const reportesAPI = {
     if (filtro?.hasta) params.append('hasta', filtro.hasta);
     if (filtro?.empresa) params.append('empresa', filtro.empresa);
     return apiRequest(`/api/reportes/exportar?${params.toString()}`);
+  },
+
+  updateSolicitud: async (id: number, data: any) => {
+    return apiRequest(`/api/admin/solicitudes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   },
 };
 

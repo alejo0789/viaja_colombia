@@ -63,12 +63,16 @@ export default function Conductores() {
   };
 
   const handleVehicleToggle = (vehiculoId: number) => {
-    setFormData(prev => ({
-      ...prev,
-      vehiculos_ids: prev.vehiculos_ids.includes(vehiculoId)
-        ? prev.vehiculos_ids.filter(id => id !== vehiculoId)
-        : [...prev.vehiculos_ids, vehiculoId]
-    }));
+    const id = Number(vehiculoId);
+    setFormData(prev => {
+      const isAlreadyIncluded = prev.vehiculos_ids.some(vid => Number(vid) === id);
+      return {
+        ...prev,
+        vehiculos_ids: isAlreadyIncluded
+          ? prev.vehiculos_ids.filter(vid => Number(vid) !== id)
+          : [...prev.vehiculos_ids, id]
+      };
+    });
   };
 
   const handleSaveDriver = async () => {
@@ -180,25 +184,35 @@ export default function Conductores() {
                   {vehiculos.length === 0 ? (
                     <p className="text-sm text-gray-500 italic">No hay vehículos registrados en la flota.</p>
                   ) : (
-                    vehiculos.map((v) => (
-                      <div key={v.id} className="flex items-center space-x-3 bg-white p-2 rounded border shadow-sm">
-                        <Checkbox 
-                          id={`veh-${v.id}`}
-                          checked={formData.vehiculos_ids.includes(v.id)}
-                          onCheckedChange={() => handleVehicleToggle(v.id)}
-                        />
-                        <label 
-                          htmlFor={`veh-${v.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex justify-between w-full cursor-pointer"
+                    vehiculos.map((v) => {
+                      const isChecked = formData.vehiculos_ids.includes(Number(v.id));
+                      return (
+                        <div 
+                          key={v.id} 
+                          className="flex items-center space-x-3 bg-white p-2.5 rounded border shadow-sm hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                          onClick={() => handleVehicleToggle(Number(v.id))}
                         >
-                          <span className="flex items-center gap-2">
-                            <Truck size={14} className="text-blue-500" />
-                            {v.marca} {v.modelo}
-                          </span>
-                          <span className="font-mono font-bold text-blue-700">{v.placa}</span>
-                        </label>
-                      </div>
-                    ))
+                          <Checkbox 
+                            id={`veh-${v.id}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              // El onClick del div ya maneja el cambio, pero por accesibilidad:
+                              // Si el checkbox cambia por teclado o click directo
+                            }}
+                            className="pointer-events-none" // Para que el click del div sea el principal
+                          />
+                          <div className="flex justify-between w-full select-none">
+                            <span className="flex items-center gap-2 text-sm font-medium">
+                              <Truck size={14} className={isChecked ? "text-blue-600" : "text-gray-400"} />
+                              {v.marca} {v.modelo}
+                            </span>
+                            <span className={`font-mono text-sm font-bold ${isChecked ? "text-blue-700" : "text-gray-400"}`}>
+                              {v.placa}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
                 <p className="text-xs text-gray-400">Selecciona uno o varios vehículos de la flota para este conductor.</p>

@@ -98,6 +98,7 @@ class Servicio(Base):
     encuesta_calificacion = Column(Integer, nullable=True)
     encuesta_comentario = Column(String, nullable=True)
     observaciones = Column(String, nullable=True)
+    precio = Column(Integer, default=0)
     
     hora_inicio = Column(DateTime(timezone=True), nullable=True)
     hora_fin = Column(DateTime(timezone=True), nullable=True)
