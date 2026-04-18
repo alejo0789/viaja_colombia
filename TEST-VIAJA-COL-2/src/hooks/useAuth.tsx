@@ -18,7 +18,7 @@ export interface User {
   id: string;
   email: string;
   nombre: string;
-  rol: 'ADMIN' | 'CONDUCTOR' | 'AUTORIZADOR';
+  rol: 'ADMIN' | 'CONDUCTOR' | 'AUTORIZADOR' | 'MASTER_SUPERVISOR';
   empresaClienteId?: string;
   empresaTransportistaId?: string;
 }
@@ -31,6 +31,7 @@ export interface AuthContextType {
   isAdmin: boolean;
   isConductor: boolean;
   isAutorizador: boolean;
+  isMasterSupervisor: boolean;
   getDashboardRoute: () => string;
   isAuthenticated: boolean;
 }
@@ -89,14 +90,16 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const isAdmin = user?.rol === 'ADMIN';
   const isConductor = user?.rol === 'CONDUCTOR';
   const isAutorizador = user?.rol === 'AUTORIZADOR';
+  const isMasterSupervisor = user?.rol === 'MASTER_SUPERVISOR';
   const isAuthenticated = user !== null;
 
   const getDashboardRoute = useCallback(() => {
     if (isAdmin) return '/admin/dashboard';
     if (isConductor) return '/conductor/dashboard';
     if (isAutorizador) return '/autorizador/dashboard';
+    if (isMasterSupervisor) return '/master/dashboard';
     return '/login';
-  }, [isAdmin, isConductor, isAutorizador]);
+  }, [isAdmin, isConductor, isAutorizador, isMasterSupervisor]);
 
   const value: AuthContextType = {
     user,
@@ -106,6 +109,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     isAdmin,
     isConductor,
     isAutorizador,
+    isMasterSupervisor,
     getDashboardRoute,
     isAuthenticated,
   };

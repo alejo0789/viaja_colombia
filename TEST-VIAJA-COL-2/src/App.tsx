@@ -20,6 +20,7 @@ import AdminAlertas from './pages/admin/Alertas';
 import GestionEmpresas from './pages/admin/GestionEmpresas';
 import MaestroUsuarios from './pages/admin/MaestroUsuarios';
 import Asignaciones from './pages/admin/Asignaciones';
+import MasterDashboard from './pages/master/MasterDashboard';
 
 // Real Autorizador Pages
 import AutorizadorDashboard from './pages/autorizador/AutorizadorDashboard';
@@ -30,6 +31,7 @@ import AutorizadorEmpleados from './pages/autorizador/AutorizadorEmpleados';
 import AdminLayout from './layouts/AdminLayout';
 import ConductorLayout from './layouts/ConductorLayout';
 import AutorizadorLayout from './layouts/AutorizadorLayout';
+import MasterLayout from './layouts/MasterLayout';
 
 function ConductorDashboard() {
   return <div className="text-2xl font-bold">Dashboard Conductor</div>;
@@ -100,7 +102,6 @@ export default function App() {
               <Route path="perfil" element={<ConductorPerfil />} />
             </Route>
 
-            {/* Autorizador Routes */}
             <Route
               path="/autorizador/*"
               element={
@@ -113,6 +114,19 @@ export default function App() {
               <Route path="solicitudes" element={<AutorizadorSolicitudes />} />
               <Route path="empleados" element={<AutorizadorEmpleados />} />
               <Route path="perfil" element={<AutorizadorPerfil />} />
+            </Route>
+
+            {/* Master Supervisor (Auditor) Routes */}
+            <Route
+              path="/master/*"
+              element={
+                <ProtectedRoute requiredRole="MASTER_SUPERVISOR">
+                  <MasterLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="dashboard" element={<MasterDashboard />} />
+              <Route path="perfil" element={<div className="p-8 text-2xl font-bold">Perfil Auditor</div>} />
             </Route>
 
             {/* 404 */}

@@ -57,6 +57,11 @@ interface Empresa {
   email: string;
   supervisores: Supervisor[];
   usuarios_count: number;
+  master_supervisor?: {
+    id: number;
+    nombre: string;
+    email: string;
+  } | null;
 }
 
 export default function GestionEmpresas() {
@@ -76,7 +81,7 @@ export default function GestionEmpresas() {
 
   // Modal State (Supervisor/User)
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-  const [memberType, setMemberType] = useState<'SUPERVISOR' | 'USUARIO'>('SUPERVISOR');
+  const [memberType, setMemberType] = useState<'SUPERVISOR' | 'USUARIO' | 'MASTER'>('SUPERVISOR');
   const [targetEmpresaId, setTargetEmpresaId] = useState<number | null>(null);
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
   const [newMember, setNewMember] = useState({
@@ -184,6 +189,15 @@ export default function GestionEmpresas() {
       } else {
         if (memberType === 'SUPERVISOR') {
           await adminAPI.createSupervisor({ ...newMember, empresa_id: targetEmpresaId });
+        } else if (memberType === 'MASTER') {
+          // Crear Usuario Dashboard con Rol 5
+          await adminAPI.createDashboardUser({
+            nombre: newMember.nombre,
+            email: newMember.email,
+            password: newMember.password,
+            rol: 5,
+            empresa_cliente_id: targetEmpresaId
+          });
         } else {
           await adminAPI.createUsuario({ ...newMember, empresa_id: targetEmpresaId });
         }
@@ -370,8 +384,50 @@ export default function GestionEmpresas() {
                     </div>
                   </div>
 
-                  {/* Usuarios Autorizados */}
-                  <div className="space-y-4">
+                  {/* Usuarios Autorizados y Auditor */}
+                  <div className="space-y-6">
+                    {/* Auditor General */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-100 flex flex-col sm:flex-row justify-between items-center shadow-sm">
+                      <div className="flex items-center gap-4 mb-4 sm:mb-0">
+                        <div className="bg-purple-50 p-3 rounded-full text-purple-600">
+                          <ShieldCheck size={24} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900">Auditor General (Dashboard)</h3>
+                          <p className="text-gray-500 text-sm">Acceso a estadísticas de la empresa.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {empresa.master_supervisor ? (
+                          <div className="text-right mr-2">
+                            <p className="font-bold text-blue-900">{empresa.master_supervisor.nombre}</p>
+                            <p className="text-xs text-gray-400">{empresa.master_supervisor.email}</p>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400 italic mr-2">No asignado</span>
+                        )}
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (empresa.master_supervisor) {
+                              openEditMember('MASTER' as any, empresa.id, {
+                                ...empresa.master_supervisor,
+                                whatsapp: ''
+                              });
+                            } else {
+                              openAddMember('MASTER' as any, empresa.id);
+                            }
+                          }}
+                        >
+                          {empresa.master_supervisor ? <Pencil size={14} className="mr-2" /> : <Plus size={14} className="mr-2" />}
+                          {empresa.master_supervisor ? 'Editar' : 'Asignar'}
+                        </Button>
+                      </div>
+                    </div>
+
                     <div className="bg-white p-6 rounded-xl border border-gray-100 flex flex-col sm:flex-row justify-between items-center shadow-sm h-full">
                       <div className="flex items-center gap-4 mb-4 sm:mb-0">
                         <div className="bg-blue-50 p-3 rounded-full text-blue-600">
@@ -379,7 +435,7 @@ export default function GestionEmpresas() {
                         </div>
                         <div>
                           <h3 className="font-bold text-lg text-gray-900">Usuarios (Empleados)</h3>
-                          <p className="text-gray-500 text-sm">Gestiona personal autorizado.</p>
+                          <p className="text-gray-500 text-sm">Personal autorizado para viajar.</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-5">
@@ -630,7 +686,11 @@ export default function GestionEmpresas() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
-              {editingMemberId ? 'Editar' : 'Añadir'} {memberType === 'SUPERVISOR' ? 'Supervisor' : 'Usuario Autorizado'}
+              {editingMemberId ? 'Editar' : 'Añadir'} {
+                memberType === 'SUPERVISOR' ? 'Supervisor (WhatsApp)' : 
+                memberType === 'MASTER' ? 'Auditor General (Dashboard)' :
+                'Usuario Autorizado'
+              }
             </DialogTitle>
             <DialogDescription>
               {editingMemberId ? 'Actualiza los datos del miembro.' : 'Ingresa los datos de registro para que pueda interactuar con el sistema vía WhatsApp.'}
@@ -646,16 +706,18 @@ export default function GestionEmpresas() {
                 onChange={(e) => setNewMember({...newMember, nombre: e.target.value})}
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="m_whatsapp" className="text-right">WhatsApp</Label>
-              <Input 
-                id="m_whatsapp" 
-                placeholder="Ej: 57315..."
-                className="col-span-3" 
-                value={newMember.whatsapp}
-                onChange={(e) => setNewMember({...newMember, whatsapp: e.target.value})}
-              />
-            </div>
+            {memberType !== 'MASTER' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="m_whatsapp" className="text-right">WhatsApp</Label>
+                <Input 
+                  id="m_whatsapp" 
+                  placeholder="Ej: 57315..."
+                  className="col-span-3" 
+                  value={newMember.whatsapp}
+                  onChange={(e) => setNewMember({...newMember, whatsapp: e.target.value})}
+                />
+              </div>
+            )}
             {memberType === 'SUPERVISOR' && (
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="m_area" className="text-right">Área</Label>
@@ -668,7 +730,13 @@ export default function GestionEmpresas() {
                 />
               </div>
             )}
-            {memberType === 'SUPERVISOR' && (
+            {memberType === 'MASTER' && (
+              <div className="col-span-4 bg-purple-50 p-3 rounded text-xs text-purple-700 border border-purple-100 flex gap-2">
+                <ShieldCheck size={16} className="shrink-0" />
+                Esta cuenta tendrá acceso al Dashboard de Auditoría de la empresa para ver estadísticas de supervisores.
+              </div>
+            )}
+            {(memberType === 'SUPERVISOR' || memberType === 'MASTER') && (
               <>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="m_email" className="text-right">Email</Label>
@@ -714,7 +782,11 @@ export default function GestionEmpresas() {
               onClick={handleAddMember}
             >
               {isSaving ? <Loader2 className="animate-spin mr-2" size={18}/> : null}
-              {editingMemberId ? 'Guardar Cambios' : (memberType === 'SUPERVISOR' ? 'Añadir Supervisor' : 'Autorizar Usuario')}
+              {editingMemberId ? 'Guardar Cambios' : (
+                memberType === 'SUPERVISOR' ? 'Añadir Supervisor' : 
+                memberType === 'MASTER' ? 'Asignar Auditor' :
+                'Autorizar Usuario'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

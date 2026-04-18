@@ -62,7 +62,7 @@ async def login(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
     # Convert rol integer to string for frontend
-    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR"}
+    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR", 5: "MASTER_SUPERVISOR"}
     role_str = role_map.get(user.rol, "ADMIN")
 
     token_payload = {
@@ -435,10 +435,53 @@ async def update_admin_solicitud(solicitud_id: int, payload: dict, db: Session =
     if "estado" in payload:
         servicio.estado = payload["estado"]
         
-    db.commit()
     return {"status": "updated", "id": solicitud_id}
 
-    return result
+@app.get("/api/master/dashboard")
+async def get_master_dashboard(request: Request, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    if not empresa_id:
+        throw_http_err(403, "No perteneces a ninguna empresa cliente")
+        
+    # Obtener todos los supervisores de la empresa
+    supervisores = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == empresa_id).all()
+    
+    result_supervisores = []
+    total_autorizados_empresa = 0
+    
+    for s in supervisores:
+        # Contar cuántos servicios ha autorizado este supervisor
+        count = db.query(models.Servicio).filter(
+            models.Servicio.supervisor_id == s.id,
+            models.Servicio.estado == "AUTORIZADO"
+        ).count()
+        
+        result_supervisores.append({
+            "id": s.id,
+            "nombre": s.nombre,
+            "area": s.area,
+            "autorizados": count,
+            "activo": s.activo
+        })
+        total_autorizados_empresa += count
+        
+    # Stats generales de la empresa
+    total_empleados = db.query(models.Usuario).filter(models.Usuario.empresa_id == empresa_id).count()
+    total_servicios = db.query(models.Servicio).filter(models.Servicio.empresa_id == empresa_id).count()
+    
+    return {
+        "supervisores": result_supervisores,
+        "stats": {
+            "total_supervisores": len(supervisores),
+            "total_autorizados": total_autorizados_empresa,
+            "total_empleados": total_empleados,
+            "total_servicios": total_servicios
+        }
+    }
 
 @app.get("/api/admin/usuarios-dashboard")
 async def get_dashboard_users(db: Session = Depends(get_db)):
@@ -849,6 +892,12 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
         # count users
         usuarios_count = db.query(models.Usuario).filter(models.Usuario.empresa_id == e.id).count()
         
+        # Master Supervisor (Auditor General)
+        master = db.query(models.UsuarioDashboard).filter(
+            models.UsuarioDashboard.empresa_cliente_id == e.id,
+            models.UsuarioDashboard.rol == 5
+        ).first()
+
         result.append({
             "id": e.id,
             "nombre": e.nombre,
@@ -859,9 +908,15 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
                 "id": s.id,
                 "nombre": s.nombre,
                 "area": s.area,
-                "whatsapp": s.whatsapp
+                "whatsapp": s.whatsapp,
+                "activo": s.activo
             } for s in supervisores],
-            "usuarios_count": usuarios_count
+            "usuarios_count": usuarios_count,
+            "master_supervisor": {
+                "id": master.id,
+                "nombre": master.nombre,
+                "email": master.email
+            } if master else None
         })
     return result
 
