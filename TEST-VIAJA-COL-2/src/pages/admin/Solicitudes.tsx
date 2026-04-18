@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -23,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import StatusBadge from '@/components/admin/StatusBadge';
@@ -31,6 +30,29 @@ import { adminAPI } from '@/services/api';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeSolicitudes } from '@/hooks/useRealtimeSolicitudes';
+import { FileDown, Search, Truck } from 'lucide-react';
+
+// Componente ayudante para mostrar texto truncado que se expande al hacer clic
+const TruncatedCell = ({ text, maxWidth = "150px" }: { text: string; maxWidth?: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!text || text === '-') return <span className="text-gray-400">-</span>;
+  
+  return (
+    <div 
+      className={`text-sm cursor-pointer transition-all duration-200 ${
+        isExpanded 
+          ? "whitespace-normal bg-blue-50 p-2 rounded border border-blue-100 shadow-sm z-10 relative left-0" 
+          : "truncate"
+      }`}
+      style={{ maxWidth: isExpanded ? '400px' : maxWidth }}
+      onClick={() => setIsExpanded(!isExpanded)}
+      title={isExpanded ? "Click para contraer" : "Click para ver completo"}
+    >
+      {text}
+    </div>
+  );
+};
 
 export default function Solicitudes() {
   const queryClient = useQueryClient();
@@ -153,11 +175,13 @@ export default function Solicitudes() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[200px] relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <Input
                 placeholder="Buscar por ID o empleado..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
               />
             </div>
             <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
@@ -212,13 +236,13 @@ export default function Solicitudes() {
             <TableBody>
               {isLoadingSolicitudes ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={10} className="text-center py-10 text-gray-400">
                     Cargando solicitudes...
                   </TableCell>
                 </TableRow>
               ) : filteredSolicitudes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={10} className="text-center py-10 text-gray-400">
                     No hay solicitudes registradas
                   </TableCell>
                 </TableRow>
@@ -228,9 +252,15 @@ export default function Solicitudes() {
                     <TableCell className="font-semibold">{solicitud.id}</TableCell>
                     <TableCell className="font-medium text-blue-800">{solicitud.empresa || 'N/A'}</TableCell>
                     <TableCell>{solicitud.empleado || solicitud.empleado_nombre}</TableCell>
-                    <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.origen}</TableCell>
-                    <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.destino}</TableCell>
-                    <TableCell className="text-sm text-amber-700 bg-amber-50 rounded px-2 py-1 max-w-[150px] truncate">{solicitud.observaciones || '-'}</TableCell>
+                    <TableCell>
+                      <TruncatedCell text={solicitud.origen} maxWidth="150px" />
+                    </TableCell>
+                    <TableCell>
+                      <TruncatedCell text={solicitud.destino} maxWidth="150px" />
+                    </TableCell>
+                    <TableCell>
+                      <TruncatedCell text={solicitud.observaciones} maxWidth="120px" />
+                    </TableCell>
                     <TableCell className="text-sm font-semibold text-[#1B3A5C] whitespace-nowrap">
                       {solicitud.hora_programada || <span className="text-gray-400 italic">Por confirmar</span>}
                     </TableCell>
@@ -329,7 +359,7 @@ export default function Solicitudes() {
                   {conductores.length === 0 ? (
                     <SelectItem value="none" disabled>No hay conductores registrados</SelectItem>
                   ) : (
-                    conductores.map((c) => (
+                    conductores.map((c: any) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nombre} — {c.telefono}
                         {c.en_servicio ? ' 🔴 En servicio' : c.disponible ? ' 🟢 Disponible' : ' ⚪ No disponible'}
@@ -350,7 +380,7 @@ export default function Solicitudes() {
                   Primero selecciona un conductor
                 </div>
               ) : (() => {
-                const driver = conductores.find(c => String(c.id) === selectedConductor);
+                const driver = conductores.find((c: any) => String(c.id) === selectedConductor);
                 const driverVehicles = driver?.vehiculos || [];
                 
                 if (driverVehicles.length === 0) {

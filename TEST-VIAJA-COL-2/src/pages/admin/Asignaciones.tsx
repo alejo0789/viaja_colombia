@@ -23,6 +23,28 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Componente ayudante para mostrar texto truncado que se expande al hacer clic
+const TruncatedCell = ({ text, maxWidth = "120px" }: { text: string; maxWidth?: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!text || text === '-') return <span className="text-gray-400">-</span>;
+  
+  return (
+    <div 
+      className={`text-xs cursor-pointer transition-all duration-200 ${
+        isExpanded 
+          ? "whitespace-normal bg-blue-50 p-2 rounded border border-blue-100 shadow-sm z-10 relative left-0 text-gray-900" 
+          : "truncate text-gray-500"
+      }`}
+      style={{ maxWidth: isExpanded ? '300px' : maxWidth }}
+      onClick={() => setIsExpanded(!isExpanded)}
+      title={isExpanded ? "Click para contraer" : "Click para ver completo"}
+    >
+      {text}
+    </div>
+  );
+};
+
 export default function Asignaciones() {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -218,6 +240,8 @@ export default function Asignaciones() {
                 <TableHead>F. Solicitud</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Pasajero</TableHead>
+                <TableHead>Origen</TableHead>
+                <TableHead>Destino</TableHead>
                 <TableHead>Observaciones</TableHead>
                 <TableHead>Conductor / Placa</TableHead>
                 <TableHead>Programado</TableHead>
@@ -230,11 +254,11 @@ export default function Asignaciones() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-10">Cargando asignaciones...</TableCell>
+                  <TableCell colSpan={13} className="text-center py-10">Cargando asignaciones...</TableCell>
                 </TableRow>
               ) : filteredSolicitudes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={13} className="text-center py-10 text-gray-400">
                     No se encontraron servicios asignados
                   </TableCell>
                 </TableRow>
@@ -271,8 +295,14 @@ export default function Asignaciones() {
                       </TableCell>
                       <TableCell className="text-sm font-medium">{s.empresa}</TableCell>
                       <TableCell className="text-sm">{s.empleado}</TableCell>
-                      <TableCell className="text-[11px] text-gray-500 max-w-[120px] truncate" title={s.observaciones}>
-                        {s.observaciones || '-'}
+                      <TableCell>
+                        <TruncatedCell text={s.origen} maxWidth="120px" />
+                      </TableCell>
+                      <TableCell>
+                        <TruncatedCell text={s.destino} maxWidth="120px" />
+                      </TableCell>
+                      <TableCell>
+                        <TruncatedCell text={s.observaciones} maxWidth="100px" />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
