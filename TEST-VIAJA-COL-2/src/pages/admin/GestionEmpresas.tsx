@@ -180,7 +180,9 @@ export default function GestionEmpresas() {
   };
 
   const handleAddMember = async () => {
-    if (!newMember.nombre || !newMember.whatsapp || !targetEmpresaId) return;
+    // Para MASTER no es obligatorio el whatsapp
+    const isMaster = memberType === 'MASTER';
+    if (!newMember.nombre || (!newMember.whatsapp && !isMaster) || !targetEmpresaId) return;
     setIsSaving(true);
     try {
       if (editingMemberId) {
@@ -234,11 +236,13 @@ export default function GestionEmpresas() {
     }
   };
 
-  const handleDeleteMember = async (type: 'SUPERVISOR' | 'USUARIO', id: number) => {
+  const handleDeleteMember = async (type: 'SUPERVISOR' | 'USUARIO' | 'MASTER', id: number) => {
     if (!confirm('¿Estás seguro de eliminar este miembro?')) return;
     try {
       if (type === 'SUPERVISOR') {
         await adminAPI.deleteSupervisor(id);
+      } else if (type === 'MASTER') {
+        await adminAPI.deleteDashboardUser(id);
       } else {
         await adminAPI.deleteUsuario(id);
       }
@@ -422,25 +426,40 @@ export default function GestionEmpresas() {
                         ) : (
                           <span className="text-sm text-gray-400 italic mr-2">No asignado</span>
                         )}
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          className="border-purple-200 text-purple-700 hover:bg-purple-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (empresa.master_supervisor) {
-                              openEditMember('MASTER' as any, empresa.id, {
-                                ...empresa.master_supervisor,
-                                whatsapp: ''
-                              });
-                            } else {
-                              openAddMember('MASTER' as any, empresa.id);
-                            }
-                          }}
-                        >
-                          {empresa.master_supervisor ? <Pencil size={14} className="mr-2" /> : <Plus size={14} className="mr-2" />}
-                          {empresa.master_supervisor ? 'Editar' : 'Asignar'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (empresa.master_supervisor) {
+                                openEditMember('MASTER' as any, empresa.id, {
+                                  ...empresa.master_supervisor,
+                                  whatsapp: ''
+                                });
+                              } else {
+                                openAddMember('MASTER', empresa.id);
+                              }
+                            }}
+                          >
+                            {empresa.master_supervisor ? <Pencil size={14} className="mr-2" /> : <Plus size={14} className="mr-2" />}
+                            {empresa.master_supervisor ? 'Editar' : 'Asignar'}
+                          </Button>
+                          {empresa.master_supervisor && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMember('MASTER', empresa.master_supervisor!.id);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
