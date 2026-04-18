@@ -21,6 +21,8 @@ import GestionEmpresas from './pages/admin/GestionEmpresas';
 import MaestroUsuarios from './pages/admin/MaestroUsuarios';
 import Asignaciones from './pages/admin/Asignaciones';
 import MasterDashboard from './pages/master/MasterDashboard';
+import MasterAsignaciones from './pages/master/MasterAsignaciones';
+import MasterGestionEmpresa from './pages/master/MasterGestionEmpresa';
 
 // Real Autorizador Pages
 import AutorizadorDashboard from './pages/autorizador/AutorizadorDashboard';
@@ -126,6 +128,8 @@ export default function App() {
               }
             >
               <Route path="dashboard" element={<MasterDashboard />} />
+              <Route path="asignaciones" element={<MasterAsignaciones />} />
+              <Route path="gestion" element={<MasterGestionEmpresa />} />
               <Route path="perfil" element={<div className="p-8 text-2xl font-bold">Perfil Auditor</div>} />
             </Route>
 

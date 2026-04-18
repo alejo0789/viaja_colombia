@@ -511,3 +511,45 @@ export const notificacionesAPI = {
     });
   },
 };
+// ============================================================================
+// MASTER (AUDITOR) API
+// ============================================================================
+export const masterAPI = {
+  getStats: async () => {
+    return apiRequest('/api/master/dashboard');
+  },
+
+  // Gestión de Supervisores por el Auditor
+  getSupervisores: async () => {
+    return apiRequest('/api/master/supervisores');
+  },
+  createSupervisor: async (data: any) => {
+    return apiRequest('/api/master/supervisores', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateSupervisor: async (id: number, data: any) => {
+    return apiRequest(`/api/master/supervisores/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Gestión de Empleados por el Auditor
+  getUsuarios: async (page = 1, search = '', size = 10) => {
+    return apiRequest(`/api/master/usuarios?page=${page}&search=${search}&size=${size}`);
+  },
+  createUsuario: async (data: any) => {
+    return apiRequest('/api/master/usuarios', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  updateUsuario: async (id: number, data: any) => {
+    return apiRequest(`/api/master/usuarios/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+};

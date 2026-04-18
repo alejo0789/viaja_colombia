@@ -39,6 +39,8 @@ interface DashboardUser {
   estado: string;
   empresa_cliente_id?: number;
   empresa_nombre?: string;
+  telefono?: string;
+  cedula?: string;
 }
 
 export default function MaestroUsuarios() {
@@ -57,7 +59,9 @@ export default function MaestroUsuarios() {
     password: '',
     rol: '1',
     estado: 'activo',
-    empresa_cliente_id: ''
+    empresa_cliente_id: '',
+    telefono: '',
+    cedula: ''
   });
 
   // Queries
@@ -80,7 +84,9 @@ export default function MaestroUsuarios() {
         password: '',
         rol: String(user.rol_id),
         estado: user.estado,
-        empresa_cliente_id: String(user.empresa_cliente_id || '')
+        empresa_cliente_id: String(user.empresa_cliente_id || ''),
+        telefono: user.telefono || '',
+        cedula: user.cedula || ''
       });
     } else {
       setEditingUser(null);
@@ -90,7 +96,9 @@ export default function MaestroUsuarios() {
         password: '',
         rol: '1',
         estado: 'activo',
-        empresa_cliente_id: ''
+        empresa_cliente_id: '',
+        telefono: '',
+        cedula: ''
       });
     }
     setIsOpen(true);
@@ -171,6 +179,8 @@ export default function MaestroUsuarios() {
                         <tr>
                             <th className="text-left py-3 px-6 font-bold text-blue-900">Nombre</th>
                             <th className="text-left py-3 px-6 font-bold text-blue-900">Email</th>
+                            <th className="text-left py-3 px-6 font-bold text-blue-900">WhatsApp</th>
+                            <th className="text-left py-3 px-6 font-bold text-blue-900">Cédula</th>
                             <th className="text-left py-3 px-6 font-bold text-blue-900 text-center">Estado</th>
                             <th className="text-right py-3 px-6 font-bold text-blue-900">Acciones</th>
                         </tr>
@@ -182,6 +192,8 @@ export default function MaestroUsuarios() {
                             <tr key={user.id} className="hover:bg-blue-50/30 transition">
                                 <td className="py-3 px-6 font-semibold">{user.nombre}</td>
                                 <td className="py-3 px-6 text-gray-500">{user.email}</td>
+                                <td className="py-3 px-6 font-mono text-xs">{user.telefono || '-'}</td>
+                                <td className="py-3 px-6 text-gray-500">{user.cedula || '-'}</td>
                                 <td className="py-3 px-6 text-center">
                                     <Badge className={user.estado === 'activo' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'} variant="outline">
                                         {user.estado === 'activo' ? 'Activo' : 'Inactivo'}
@@ -308,6 +320,17 @@ export default function MaestroUsuarios() {
             <div className="grid gap-2">
               <Label className="text-gray-600">E-mail Corporativo</Label>
               <Input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                    <Label className="text-gray-600">WhatsApp</Label>
+                    <Input placeholder="57315..." value={formData.telefono} onChange={(e) => setFormData({...formData, telefono: e.target.value})} />
+                </div>
+                <div className="grid gap-2">
+                    <Label className="text-gray-600">Cédula</Label>
+                    <Input placeholder="123456..." value={formData.cedula} onChange={(e) => setFormData({...formData, cedula: e.target.value})} />
+                </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">

@@ -240,6 +240,7 @@ export default function Asignaciones() {
                 <TableHead>F. Solicitud</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Pasajero</TableHead>
+                <TableHead>Autorizador</TableHead>
                 <TableHead>Origen</TableHead>
                 <TableHead>Destino</TableHead>
                 <TableHead>Observaciones</TableHead>
@@ -254,11 +255,11 @@ export default function Asignaciones() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-10">Cargando asignaciones...</TableCell>
+                  <TableCell colSpan={14} className="text-center py-10">Cargando asignaciones...</TableCell>
                 </TableRow>
               ) : filteredSolicitudes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={14} className="text-center py-10 text-gray-400">
                     No se encontraron servicios asignados
                   </TableCell>
                 </TableRow>
@@ -295,6 +296,16 @@ export default function Asignaciones() {
                       </TableCell>
                       <TableCell className="text-sm font-medium">{s.empresa}</TableCell>
                       <TableCell className="text-sm">{s.empleado}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-900 text-xs">{s.autorizador_nombre || 'N/A'}</span>
+                          {s.autorizador_area && s.autorizador_area !== 'N/A' && (
+                            <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded w-fit font-bold uppercase mt-0.5">
+                              {s.autorizador_area}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <TruncatedCell text={s.origen} maxWidth="120px" />
                       </TableCell>

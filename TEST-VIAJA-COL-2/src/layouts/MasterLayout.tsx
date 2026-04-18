@@ -1,12 +1,14 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LayoutDashboard, LogOut, ShieldCheck, UserCircle } from 'lucide-react';
+import { LayoutDashboard, LogOut, ShieldCheck, UserCircle, ClipboardList, Users } from 'lucide-react';
 
 export default function MasterLayout() {
   const { signOut, user } = useAuth();
 
   const menuItems = [
     { label: 'Dashboard Auditoría', href: '/master/dashboard', icon: LayoutDashboard },
+    { label: 'Asignaciones', href: '/master/asignaciones', icon: ClipboardList },
+    { label: 'Gestión Personal', href: '/master/gestion', icon: Users },
     { label: 'Mi Perfil', href: '/master/perfil', icon: UserCircle },
   ];
 

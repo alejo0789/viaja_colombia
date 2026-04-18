@@ -203,17 +203,6 @@ export default function MasterDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-md rounded-2xl bg-orange-50 border border-orange-100">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-3 text-orange-800">
-                <AlertCircle size={20} />
-                <h4 className="font-bold">Aviso</h4>
-              </div>
-              <p className="text-xs text-orange-700 leading-relaxed">
-                Este panel es estrictamente de **solo lectura**. Si necesitas modificar algún dato o revocar accesos, contacta al administrador central de Viaja-Colombia.
-              </p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

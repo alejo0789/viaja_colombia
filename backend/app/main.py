@@ -414,7 +414,9 @@ async def get_admin_solicitudes(
             "conductor": conductor_nombre,
             "placa": vehiculo_placa,
             "observaciones": s.observaciones or "",
-            "precio": s.precio or 0
+            "precio": s.precio or 0,
+            "autorizador_nombre": s.supervisor.nombre if s.supervisor else "N/A",
+            "autorizador_area": s.supervisor.area if s.supervisor else "N/A"
         })
         
     return {
@@ -471,10 +473,13 @@ async def get_master_dashboard(request: Request, db: Session = Depends(get_db)):
         total_autorizados_empresa += count
         
     # Stats generales de la empresa
+    empresa_obj = db.query(models.Empresa).filter(models.Empresa.id == empresa_id).first()
+    empresa_nombre = empresa_obj.nombre if empresa_obj else ""
     total_empleados = db.query(models.Usuario).filter(models.Usuario.empresa_id == empresa_id).count()
     total_servicios = db.query(models.Servicio).filter(models.Servicio.empresa_id == empresa_id).count()
     
     return {
+        "empresa_nombre": empresa_nombre,
         "supervisores": result_supervisores,
         "stats": {
             "total_supervisores": len(supervisores),
@@ -483,6 +488,101 @@ async def get_master_dashboard(request: Request, db: Session = Depends(get_db)):
             "total_servicios": total_servicios
         }
     }
+
+@app.get("/api/master/supervisores")
+async def get_master_supervisores(request: Request, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    if not empresa_id:
+        throw_http_err(403, "No autorizado")
+        
+    supervisores = db.query(models.Supervisor).filter(models.Supervisor.empresa_id == empresa_id).all()
+    return [{
+        "id": s.id,
+        "nombre": s.nombre,
+        "area": s.area,
+        "whatsapp": s.whatsapp,
+        "email": s.email,
+        "activo": s.activo
+    } for s in supervisores]
+
+@app.get("/api/master/usuarios")
+async def get_master_usuarios(request: Request, page: int = 1, search: str = "", size: int = 10, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    if not empresa_id:
+        throw_http_err(403, "No autorizado")
+        
+    query = db.query(models.Usuario).filter(models.Usuario.empresa_id == empresa_id)
+    if search:
+        query = query.filter(models.Usuario.nombre.ilike(f"%{search}%"))
+        
+    total = query.count()
+    usuarios = query.offset((page - 1) * size).limit(size).all()
+    
+    return {
+        "total": total,
+        "usuarios": [{
+            "id": u.id,
+            "nombre": u.nombre,
+            "whatsapp": u.whatsapp,
+            "cargo": u.cargo,
+            "activo": u.activo
+        } for u in usuarios]
+    }
+
+@app.post("/api/master/supervisores")
+async def create_master_supervisor_member(request: Request, data: dict, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    if not empresa_id: throw_http_err(403, "No autorizado")
+    
+    # Use existing admin logic but override empresa_id
+    data["empresa_id"] = empresa_id
+    return await create_admin_supervisor(data, db)
+
+@app.patch("/api/master/supervisores/{id}")
+async def update_master_supervisor_member(id: int, request: Request, data: dict, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    supervisor = db.query(models.Supervisor).filter(models.Supervisor.id == id, models.Supervisor.empresa_id == empresa_id).first()
+    if not supervisor: throw_http_err(404, "Supervisor no encontrado")
+    
+    return await update_admin_supervisor(id, data, db)
+
+@app.post("/api/master/usuarios")
+async def create_master_usuario(request: Request, data: dict, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    if not empresa_id: throw_http_err(403, "No autorizado")
+    
+    data["empresa_id"] = empresa_id
+    return await create_admin_usuario(data, db)
+
+@app.patch("/api/master/usuarios/{id}")
+async def update_master_usuario(id: int, request: Request, data: dict, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    empresa_id = payload.get("empresaClienteId")
+    
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == id, models.Usuario.empresa_id == empresa_id).first()
+    if not usuario: throw_http_err(404, "Usuario no encontrado")
+    
+    return await update_admin_usuario(id, data, db)
 
 @app.get("/api/admin/usuarios-dashboard")
 async def get_dashboard_users(db: Session = Depends(get_db)):
@@ -505,6 +605,8 @@ async def get_dashboard_users(db: Session = Depends(get_db)):
         "estado": u.estado,
         "empresa_cliente_id": u.empresa_cliente_id,
         "empresa_nombre": empresa_nombre or "Viaja Colombia",
+        "telefono": u.telefono,
+        "cedula": u.cedula,
         "created_at": u.created_at
     } for u, empresa_nombre in results]
 

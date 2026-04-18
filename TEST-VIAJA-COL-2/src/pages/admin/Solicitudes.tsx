@@ -229,6 +229,7 @@ export default function Solicitudes() {
                 <TableHead>Observaciones</TableHead>
                 <TableHead>Fecha/Hora Solicitada</TableHead>
                 <TableHead>Creado</TableHead>
+                <TableHead>Autorizador</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
@@ -236,7 +237,7 @@ export default function Solicitudes() {
             <TableBody>
               {isLoadingSolicitudes ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={11} className="text-center py-10 text-gray-400">
                     Cargando solicitudes...
                   </TableCell>
                 </TableRow>
@@ -265,6 +266,16 @@ export default function Solicitudes() {
                       {solicitud.hora_programada || <span className="text-gray-400 italic">Por confirmar</span>}
                     </TableCell>
                     <TableCell className="text-sm text-gray-500">{solicitud.fecha}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-gray-900 text-xs">{solicitud.autorizador_nombre || 'N/A'}</span>
+                        {solicitud.autorizador_area && solicitud.autorizador_area !== 'N/A' && (
+                          <span className="text-[9px] bg-slate-100 text-slate-600 px-1 py-0.2 rounded w-fit font-bold uppercase mt-0.5">
+                            {solicitud.autorizador_area}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <StatusBadge estado={solicitud.estado} />
                     </TableCell>
