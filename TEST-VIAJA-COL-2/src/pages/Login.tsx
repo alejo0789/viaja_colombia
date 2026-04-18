@@ -53,10 +53,11 @@ export default function Login() {
       }
 
       // Professional redirection based on direct userData
-      const routeMap = {
+      const routeMap: Record<string, string> = {
         'ADMIN': '/admin/dashboard',
         'CONDUCTOR': '/conductor/dashboard',
-        'AUTORIZADOR': '/autorizador/dashboard'
+        'AUTORIZADOR': '/autorizador/dashboard',
+        'MASTER_SUPERVISOR': '/master/dashboard'
       };
       
       const targetRoute = routeMap[userData.rol] || '/login';
