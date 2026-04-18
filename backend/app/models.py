@@ -133,7 +133,9 @@ class UsuarioDashboard(Base):
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
     nombre = Column(String)
-    rol = Column(Integer) # 1: admin, 2: conductor, 4: autorizador
+    telefono = Column(String, nullable=True)
+    cedula = Column(String, nullable=True)
+    rol = Column(Integer) # 1: admin, 2: conductor, 4: autorizador, 5: master_supervisor
     estado = Column(String, default="activo")
     empresa_cliente_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     empresa_transportista_id = Column(Integer, nullable=True)

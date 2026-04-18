@@ -516,6 +516,8 @@ async def create_dashboard_user(payload: dict, db: Session = Depends(get_db)):
     new_user = models.UsuarioDashboard(
         email=email,
         nombre=payload.get("nombre"),
+        telefono=payload.get("telefono"),
+        cedula=payload.get("cedula"),
         password_hash=auth.get_password_hash(payload.get("password", "ViajaCol2024*")),
         rol=payload.get("rol", 1),
         estado="activo",
@@ -533,6 +535,8 @@ async def update_dashboard_user(user_id: int, payload: dict, db: Session = Depen
         
     if "nombre" in payload: user.nombre = payload["nombre"]
     if "email" in payload: user.email = payload["email"].lower().strip()
+    if "telefono" in payload: user.telefono = payload["telefono"]
+    if "cedula" in payload: user.cedula = payload["cedula"]
     if "rol" in payload: user.rol = payload["rol"]
     if "estado" in payload: user.estado = payload["estado"]
     if "empresa_cliente_id" in payload: user.empresa_cliente_id = payload["empresa_cliente_id"]
@@ -915,7 +919,9 @@ async def get_admin_empresas(db: Session = Depends(get_db)):
             "master_supervisor": {
                 "id": master.id,
                 "nombre": master.nombre,
-                "email": master.email
+                "email": master.email,
+                "telefono": master.telefono,
+                "cedula": master.cedula
             } if master else None
         })
     return result

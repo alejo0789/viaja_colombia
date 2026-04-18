@@ -20,7 +20,23 @@ def sync():
             print(f"Nota: 'precio' ya existe o hubo error: {e}")
             db.rollback()
             
-        # 2. Crear tabla de asociación conductor_vehiculo si no existe
+        # 2. Agregar columnas a 'usuarios' (UsuarioDashboard)
+        print("Agregando columnas 'telefono' y 'cedula' a la tabla 'usuarios'...")
+        try:
+            db.execute(text("ALTER TABLE usuarios ADD COLUMN telefono VARCHAR"))
+            print("Columna 'telefono' agregada.")
+        except Exception as e:
+            print(f"Nota: 'telefono' ya existe o hubo error: {e}")
+            db.rollback()
+
+        try:
+            db.execute(text("ALTER TABLE usuarios ADD COLUMN cedula VARCHAR"))
+            print("Columna 'cedula' agregada.")
+        except Exception as e:
+            print(f"Nota: 'cedula' ya existe o hubo error: {e}")
+            db.rollback()
+
+        # 3. Crear tabla de asociación conductor_vehiculo si no existe
         print("Creando tabla de asociación 'conductor_vehiculo'...")
         try:
             db.execute(text("""

@@ -90,7 +90,9 @@ export default function GestionEmpresas() {
     whatsapp: '',
     cargo: '',
     email: '',
-    password: ''
+    password: '',
+    telefono: '',
+    cedula: ''
   });
 
   // Bulk User Management Modal
@@ -152,15 +154,15 @@ export default function GestionEmpresas() {
     }
   };
 
-  const openAddMember = (type: 'SUPERVISOR' | 'USUARIO', empresaId: number) => {
+  const openAddMember = (type: 'SUPERVISOR' | 'USUARIO' | 'MASTER', empresaId: number) => {
     setMemberType(type);
     setTargetEmpresaId(empresaId);
     setEditingMemberId(null);
-    setNewMember({ nombre: '', area: '', whatsapp: '', cargo: '', email: '', password: '' });
+    setNewMember({ nombre: '', area: '', whatsapp: '', cargo: '', email: '', password: '', telefono: '', cedula: '' });
     setIsAddMemberModalOpen(true);
   };
 
-  const openEditMember = (type: 'SUPERVISOR' | 'USUARIO', empresaId: number, member: any) => {
+  const openEditMember = (type: 'SUPERVISOR' | 'USUARIO' | 'MASTER', empresaId: number, member: any) => {
     setMemberType(type);
     setTargetEmpresaId(empresaId);
     setEditingMemberId(member.id);
@@ -170,7 +172,9 @@ export default function GestionEmpresas() {
       whatsapp: member.whatsapp || '', 
       cargo: member.cargo || '',
       email: member.email || '',
-      password: ''
+      password: '',
+      telefono: member.telefono || '',
+      cedula: member.cedula || ''
     });
     setIsAddMemberModalOpen(true);
   };
@@ -182,6 +186,16 @@ export default function GestionEmpresas() {
       if (editingMemberId) {
         if (memberType === 'SUPERVISOR') {
           await adminAPI.updateSupervisor(editingMemberId, newMember);
+        } else if (memberType === 'MASTER') {
+          await adminAPI.updateDashboardUser(editingMemberId, {
+            nombre: newMember.nombre,
+            email: newMember.email,
+            password: newMember.password,
+            telefono: newMember.telefono,
+            cedula: newMember.cedula,
+            rol: 5,
+            empresa_cliente_id: targetEmpresaId
+          });
         } else {
           await adminAPI.updateUsuario(editingMemberId, newMember);
         }
@@ -195,6 +209,8 @@ export default function GestionEmpresas() {
             nombre: newMember.nombre,
             email: newMember.email,
             password: newMember.password,
+            telefono: newMember.telefono,
+            cedula: newMember.cedula,
             rol: 5,
             empresa_cliente_id: targetEmpresaId
           });
@@ -683,109 +699,146 @@ export default function GestionEmpresas() {
 
       {/* MODAL CREACIÓN MIEMBRO (SUPERVISOR O USUARIO) */}
       <Dialog open={isAddMemberModalOpen} onOpenChange={setIsAddMemberModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingMemberId ? 'Editar' : 'Añadir'} {
-                memberType === 'SUPERVISOR' ? 'Supervisor (WhatsApp)' : 
-                memberType === 'MASTER' ? 'Auditor General (Dashboard)' :
-                'Usuario Autorizado'
+        <DialogContent className={`sm:max-w-[${memberType === 'MASTER' ? '550px' : '425px'}] transition-all duration-300 border-none shadow-2xl overflow-hidden`}>
+          <div className={`absolute top-0 left-0 w-full h-1 ${memberType === 'MASTER' ? 'bg-purple-600' : 'bg-orange-500'}`}></div>
+          <DialogHeader className="pt-6">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              {memberType === 'MASTER' ? <ShieldCheck className="text-purple-600" size={24} /> : (memberType === 'SUPERVISOR' ? <Users className="text-orange-500" size={24} /> : <UserCircle size={24} />)}
+              {editingMemberId ? 'Actualizar' : 'Registrar'} {
+                memberType === 'SUPERVISOR' ? 'Supervisor' : 
+                memberType === 'MASTER' ? 'Auditor General' :
+                'Empleado'
               }
             </DialogTitle>
-            <DialogDescription>
-              {editingMemberId ? 'Actualiza los datos del miembro.' : 'Ingresa los datos de registro para que pueda interactuar con el sistema vía WhatsApp.'}
+            <DialogDescription className="text-gray-500">
+               {memberType === 'MASTER' 
+                 ? 'Asigna un responsable para monitorear aprobaciones y estadísticas corporativas.' 
+                 : 'Completa la información para habilitar el acceso al sistema.'
+               }
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="m_nombre" className="text-right">Nombre</Label>
-              <Input 
-                id="m_nombre" 
-                className="col-span-3" 
-                value={newMember.nombre}
-                onChange={(e) => setNewMember({...newMember, nombre: e.target.value})}
-              />
-            </div>
-            {memberType !== 'MASTER' && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="m_whatsapp" className="text-right">WhatsApp</Label>
-                <Input 
-                  id="m_whatsapp" 
-                  placeholder="Ej: 57315..."
-                  className="col-span-3" 
-                  value={newMember.whatsapp}
-                  onChange={(e) => setNewMember({...newMember, whatsapp: e.target.value})}
-                />
-              </div>
-            )}
-            {memberType === 'SUPERVISOR' && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="m_area" className="text-right">Área</Label>
-                <Input 
-                  id="m_area" 
-                  placeholder="Ej: Financiera, RRHH..."
-                  className="col-span-3" 
-                  value={newMember.area}
-                  onChange={(e) => setNewMember({...newMember, area: e.target.value})}
-                />
-              </div>
-            )}
-            {memberType === 'MASTER' && (
-              <div className="col-span-4 bg-purple-50 p-3 rounded text-xs text-purple-700 border border-purple-100 flex gap-2">
-                <ShieldCheck size={16} className="shrink-0" />
-                Esta cuenta tendrá acceso al Dashboard de Auditoría de la empresa para ver estadísticas de supervisores.
-              </div>
-            )}
-            {(memberType === 'SUPERVISOR' || memberType === 'MASTER') && (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="m_email" className="text-right">Email</Label>
-                  <Input 
-                    id="m_email" 
-                    type="email"
-                    placeholder="Para acceder a la web"
-                    className="col-span-3" 
-                    value={newMember.email}
-                    onChange={(e) => setNewMember({...newMember, email: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="m_pass" className="text-right">Contraseña</Label>
-                  <Input 
-                    id="m_pass" 
-                    type="password"
-                    placeholder={editingMemberId ? "Déjalo vacío para no cambiar" : "Clave de acceso"}
-                    className="col-span-3" 
-                    value={newMember.password}
-                    onChange={(e) => setNewMember({...newMember, password: e.target.value})}
-                  />
-                </div>
-              </>
-            )}
 
-            {memberType === 'USUARIO' && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="m_cargo" className="text-right">Cargo</Label>
-                <Input 
-                  id="m_cargo" 
-                  className="col-span-3" 
-                  value={newMember.cargo}
-                  onChange={(e) => setNewMember({...newMember, cargo: e.target.value})}
-                />
+          <div className="grid gap-6 py-6">
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2 col-span-2">
+                  <Label htmlFor="m_nombre" className="text-sm font-semibold text-gray-700">Nombre Completo</Label>
+                  <Input 
+                    id="m_nombre" 
+                    placeholder="Ej: Juan Perez"
+                    className="h-10 border-gray-200 focus-visible:ring-purple-600" 
+                    value={newMember.nombre}
+                    onChange={(e) => setNewMember({...newMember, nombre: e.target.value})}
+                  />
+               </div>
+
+               {memberType === 'MASTER' && (
+                 <>
+                   <div className="space-y-2">
+                      <Label htmlFor="m_cedula" className="text-sm font-semibold text-gray-700">Cédula / ID</Label>
+                      <Input 
+                        id="m_cedula" 
+                        placeholder="Documento de identidad"
+                        className="h-10 border-gray-200" 
+                        value={newMember.cedula}
+                        onChange={(e) => setNewMember({...newMember, cedula: e.target.value})}
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <Label htmlFor="m_telefono" className="text-sm font-semibold text-gray-700">Teléfono</Label>
+                      <Input 
+                        id="m_telefono" 
+                        placeholder="Número de contacto"
+                        className="h-10 border-gray-200" 
+                        value={newMember.telefono}
+                        onChange={(e) => setNewMember({...newMember, telefono: e.target.value})}
+                      />
+                   </div>
+                 </>
+               )}
+
+               {memberType !== 'MASTER' && (
+                 <div className="space-y-2 col-span-2">
+                    <Label htmlFor="m_whatsapp" className="text-sm font-semibold text-gray-700">WhatsApp</Label>
+                    <Input 
+                      id="m_whatsapp" 
+                      placeholder="Ej: 57315..."
+                      className="h-10 border-gray-200" 
+                      value={newMember.whatsapp}
+                      onChange={(e) => setNewMember({...newMember, whatsapp: e.target.value})}
+                    />
+                 </div>
+               )}
+
+               {(memberType === 'SUPERVISOR' || memberType === 'MASTER') && (
+                 <>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="m_email" className="text-sm font-semibold text-gray-700">Correo Electrónico</Label>
+                      <Input 
+                        id="m_email" 
+                        type="email"
+                        placeholder="email@empresa.com"
+                        className="h-10 border-gray-200" 
+                        value={newMember.email}
+                        onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="m_pass" className="text-sm font-semibold text-gray-700">Contraseña de Acceso</Label>
+                      <Input 
+                        id="m_pass" 
+                        type="password"
+                        placeholder={editingMemberId ? "•••••• (Vacio para mantener)" : "Definir contraseña"}
+                        className="h-10 border-gray-200" 
+                        value={newMember.password}
+                        onChange={(e) => setNewMember({...newMember, password: e.target.value})}
+                      />
+                    </div>
+                 </>
+               )}
+
+               {memberType === 'SUPERVISOR' && (
+                 <div className="space-y-2 col-span-2">
+                    <Label htmlFor="m_area" className="text-sm font-semibold text-gray-700">Área Responsable</Label>
+                    <Input 
+                      id="m_area" 
+                      placeholder="Ej: RRHH, Finanzas..."
+                      className="h-10 border-gray-200" 
+                      value={newMember.area}
+                      onChange={(e) => setNewMember({...newMember, area: e.target.value})}
+                    />
+                 </div>
+               )}
+            </div>
+
+            {memberType === 'MASTER' && (
+              <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex gap-3">
+                <ShieldCheck size={20} className="text-purple-600 shrink-0" />
+                <p className="text-xs text-purple-700 leading-relaxed">
+                  <strong>Permisos de Auditoría:</strong> El usuario podrá visualizar el ranking de supervisores, estados de servicios y estadísticas globales de la compañía.
+                </p>
               </div>
             )}
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="bg-gray-50 -mx-6 -mb-6 p-6">
             <Button 
-              className="bg-[#F97316] hover:bg-orange-600"
+              variant="outline"
+              className="border-gray-300"
+              onClick={() => setIsAddMemberModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              className={`${memberType === 'MASTER' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-orange-600 hover:bg-orange-700'} text-white shadow-lg px-8`}
               disabled={isSaving}
               onClick={handleAddMember}
             >
               {isSaving ? <Loader2 className="animate-spin mr-2" size={18}/> : null}
               {editingMemberId ? 'Guardar Cambios' : (
-                memberType === 'SUPERVISOR' ? 'Añadir Supervisor' : 
+                memberType === 'SUPERVISOR' ? 'Añadir' : 
                 memberType === 'MASTER' ? 'Asignar Auditor' :
-                'Autorizar Usuario'
+                'Registrar'
               )}
             </Button>
           </DialogFooter>
