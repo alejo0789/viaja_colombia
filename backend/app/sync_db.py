@@ -1,8 +1,5 @@
-import sys
-import os
 from sqlalchemy import text
 from database import SessionLocal, engine
-import models
 
 def sync():
     db = SessionLocal()
@@ -23,16 +20,23 @@ def sync():
             print(f"Nota: 'precio' ya existe o hubo error: {e}")
             db.rollback()
             
-        # 2. Eliminar columnas viejas de 'drivers' (opcional, pero limpio)
-        # No las borramos por ahora por seguridad, pero el código ya no las usa.
-
-        # 3. Crear tabla de asociación conductor_vehiculo si no existe
+        # 2. Crear tabla de asociación conductor_vehiculo si no existe
         print("Creando tabla de asociación 'conductor_vehiculo'...")
-        models.Base.metadata.create_all(bind=engine)
-        print("Tablas sincronizadas con Base.metadata.create_all")
+        try:
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS conductor_vehiculo (
+                    conductor_id INTEGER REFERENCES drivers(id),
+                    vehiculo_id INTEGER REFERENCES vehiculos(id),
+                    PRIMARY KEY (conductor_id, vehiculo_id)
+                )
+            """))
+            print("Tabla 'conductor_vehiculo' verificada/creada.")
+        except Exception as e:
+            print(f"Error al crear tabla conductor_vehiculo: {e}")
+            db.rollback()
         
         db.commit()
-        print("Sincronización completada exitosamente.")
+        print("Sincronización manual completada exitosamente.")
     except Exception as e:
         print(f"Error crítico durante la sincronización: {e}")
         db.rollback()
