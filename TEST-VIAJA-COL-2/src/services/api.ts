@@ -53,6 +53,10 @@ export const adminAPI = {
     });
   },
 
+  getMasterDashboard: async () => {
+    return apiRequest('/api/master/dashboard');
+  },
+
   asignarServicio: async (solicitudId: string | number, conductorId: string | number, vehiculo?: string, placa?: string) => {
     return apiRequest('/api/admin/asignar-servicio', {
       method: 'POST',

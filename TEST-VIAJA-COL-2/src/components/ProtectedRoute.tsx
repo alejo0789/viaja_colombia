@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'ADMIN' | 'CONDUCTOR' | 'AUTORIZADOR';
+  requiredRole?: 'ADMIN' | 'CONDUCTOR' | 'AUTORIZADOR' | 'MASTER_SUPERVISOR';
 }
 
 export function ProtectedRoute({
@@ -29,7 +29,7 @@ export function ProtectedRoute({
   }
 
   if (requiredRole && user?.rol !== requiredRole) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

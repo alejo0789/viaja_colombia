@@ -110,7 +110,7 @@ async def get_me(request: Request, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR"}
+    role_map = {1: "ADMIN", 2: "CONDUCTOR", 4: "AUTORIZADOR", 5: "MASTER_SUPERVISOR"}
         
     return {
         "id": str(user.id),
@@ -435,6 +435,7 @@ async def update_admin_solicitud(solicitud_id: int, payload: dict, db: Session =
     if "estado" in payload:
         servicio.estado = payload["estado"]
         
+    db.commit()
     return {"status": "updated", "id": solicitud_id}
 
 @app.get("/api/master/dashboard")
