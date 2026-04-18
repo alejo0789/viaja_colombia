@@ -77,12 +77,14 @@ export default function Asignaciones() {
       Empleado: s.empleado,
       Origen: s.origen,
       Destino: s.destino,
+      Observaciones: s.observaciones || '',
       'Fecha Programada': s.hora_programada,
       'Hora Inicio': s.hora_inicio || 'N/A',
       'Hora Fin': s.hora_fin || 'N/A',
       Duracion: s.duracion || 'N/A',
       Conductor: s.conductor || 'N/A',
       Placa: s.placa || 'N/A',
+      Precio: s.precio || 0,
       Estado: s.estado
     }));
 
@@ -90,6 +92,12 @@ export default function Asignaciones() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Asignaciones');
     XLSX.writeFile(workbook, `Asignaciones_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const formatPrice = (value: string | number) => {
+    if (!value && value !== 0) return '';
+    const num = String(value).replace(/\D/g, '');
+    return num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
   // Generar opciones de meses (últimos 6 meses)
@@ -300,9 +308,15 @@ export default function Asignaciones() {
                           <span className="absolute left-2 text-gray-400 text-xs">$</span>
                           <Input
                             type="text"
-                            defaultValue={s.precio === 0 ? '' : s.precio.toLocaleString()}
+                            defaultValue={formatPrice(s.precio)}
                             placeholder="0"
                             className="h-8 pl-5 pr-2 text-sm font-bold text-emerald-700 bg-emerald-50/50 border-emerald-100 focus:border-emerald-300 focus:ring-emerald-200"
+                            onChange={(e) => {
+                              const pos = e.target.selectionStart;
+                              const val = e.target.value;
+                              const formatted = formatPrice(val);
+                              e.target.value = formatted;
+                            }}
                             onBlur={(e) => handleUpdatePrice(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
