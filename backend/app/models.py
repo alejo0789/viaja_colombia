@@ -1,7 +1,15 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, JSON, Table
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
+
+# Tabla de asociación para la relación Muchos a Muchos entre Conductores y Vehículos
+conductor_vehiculo = Table(
+    "conductor_vehiculo",
+    Base.metadata,
+    Column("conductor_id", Integer, ForeignKey("drivers.id"), primary_key=True),
+    Column("vehiculo_id", Integer, ForeignKey("vehiculos.id"), primary_key=True),
+)
 
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
@@ -14,6 +22,8 @@ class Vehiculo(Base):
     tipo_servicio = Column(String, nullable=True)
     estado = Column(String, default="activo")  # activo, mantenimiento, inactivo
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    conductores = relationship("Conductor", secondary=conductor_vehiculo, back_populates="vehiculos")
 
 
 class Empresa(Base):
@@ -62,13 +72,12 @@ class Conductor(Base):
     nombre = Column(String)
     telefono = Column(String, unique=True)
     whatsapp = Column(String, nullable=True)  # Número WhatsApp con código de país
-    vehiculo = Column(String, nullable=True)
-    placa = Column(String, nullable=True)
     disponible = Column(Boolean, default=True)
     en_servicio = Column(Boolean, default=False)
     horario_disponibilidad = Column(JSON, nullable=True)
     
     servicios_asignados = relationship("Servicio", back_populates="conductor")
+    vehiculos = relationship("Vehiculo", secondary=conductor_vehiculo, back_populates="conductores")
 
 class Servicio(Base):
     __tablename__ = "services"

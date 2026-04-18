@@ -502,7 +502,7 @@ def throw_http_err(code: int, detail: str):
 
 @app.get("/api/admin/conductores")
 async def get_conductores(db: Session = Depends(get_db)):
-    """Retorna todos los conductores registrados con información básica de vehículo."""
+    """Retorna todos los conductores registrados con sus vehículos asignados."""
     conductores = db.query(models.Conductor).all()
     return [
         {
@@ -510,8 +510,10 @@ async def get_conductores(db: Session = Depends(get_db)):
             "nombre": c.nombre,
             "telefono": c.telefono,
             "whatsapp": c.whatsapp,
-            "vehiculo": c.vehiculo,
-            "placa": c.placa,
+            "vehiculos": [
+                {"id": v.id, "placa": v.placa, "marca": v.marca, "modelo": v.modelo}
+                for v in c.vehiculos
+            ],
             "disponible": c.disponible,
             "en_servicio": c.en_servicio,
         }
@@ -522,18 +524,22 @@ async def get_conductores(db: Session = Depends(get_db)):
 async def create_conductor(data: dict, db: Session = Depends(get_db)):
     """Crea un nuevo conductor en la base de datos."""
     telefono = data.get("telefono", "")
-    # Guardar el whatsapp normalizado con codigo de pais para envios directos
     whatsapp_raw = data.get("whatsapp") or telefono
     whatsapp_normalizado = normalizar_telefono_co(whatsapp_raw)
+    
     conductor = models.Conductor(
         nombre=data.get("nombre"),
         telefono=telefono,
         whatsapp=whatsapp_normalizado,
-        vehiculo=data.get("vehiculo", ""),
-        placa=data.get("placa", ""),
         disponible=True,
         en_servicio=False,
     )
+    
+    # Asignar vehículos si se proporcionan IDs
+    if "vehiculos_ids" in data:
+        vehiculos = db.query(models.Vehiculo).filter(models.Vehiculo.id.in_(data["vehiculos_ids"])).all()
+        conductor.vehiculos = vehiculos
+
     db.add(conductor)
     db.commit()
     db.refresh(conductor)
@@ -546,12 +552,38 @@ async def update_conductor(conductor_id: int, data: dict, db: Session = Depends(
         throw_http_err(404, "Conductor no encontrado")
         
     for key, value in data.items():
-        if hasattr(conductor, key):
+        if key == "vehiculos_ids":
+            vehiculos = db.query(models.Vehiculo).filter(models.Vehiculo.id.in_(value)).all()
+            conductor.vehiculos = vehiculos
+        elif hasattr(conductor, key):
             setattr(conductor, key, value)
             
     db.commit()
     db.refresh(conductor)
     return conductor
+
+@app.post("/api/admin/conductores/{conductor_id}/toggle-vehiculo")
+async def toggle_conductor_vehiculo(conductor_id: int, payload: dict, db: Session = Depends(get_db)):
+    """Asigna o remueve un vehículo de un conductor."""
+    vehiculo_id = payload.get("vehiculo_id")
+    if not vehiculo_id:
+        throw_http_err(400, "vehiculo_id es requerido")
+        
+    conductor = db.query(models.Conductor).filter(models.Conductor.id == conductor_id).first()
+    vehiculo = db.query(models.Vehiculo).filter(models.Vehiculo.id == vehiculo_id).first()
+    
+    if not conductor or not vehiculo:
+        throw_http_err(404, "Conductor o Vehículo no encontrado")
+        
+    if vehiculo in conductor.vehiculos:
+        conductor.vehiculos.remove(vehiculo)
+        msg = "Vehículo removido del conductor"
+    else:
+        conductor.vehiculos.append(vehiculo)
+        msg = "Vehículo asignado al conductor"
+        
+    db.commit()
+    return {"message": msg, "conductor_id": conductor_id, "vehiculo_id": vehiculo_id}
 
 @app.patch("/api/admin/conductores/{conductor_id}/toggle-status")
 async def toggle_conductor_status(conductor_id: int, db: Session = Depends(get_db)):

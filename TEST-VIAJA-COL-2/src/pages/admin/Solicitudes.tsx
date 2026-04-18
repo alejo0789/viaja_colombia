@@ -313,7 +313,13 @@ export default function Solicitudes() {
               <label className="text-sm font-medium text-gray-700 mb-1 block">
                 Conductor
               </label>
-              <Select value={selectedConductor} onValueChange={setSelectedConductor}>
+              <Select 
+                value={selectedConductor} 
+                onValueChange={(val) => {
+                  setSelectedConductor(val);
+                  setSelectedVehiculo(''); // Reset vehicle when driver changes
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona un conductor" />
                 </SelectTrigger>
@@ -332,32 +338,42 @@ export default function Solicitudes() {
               </Select>
             </div>
 
-            {/* Selector de vehículo registrado */}
+            {/* Selector de vehículo (filtrado por conductor) */}
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">
-                Vehículo de la flota
+                Vehículo Asignado
               </label>
-              {vehiculos.filter((v) => v.estado === 'activo').length === 0 ? (
-                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
-                  ⚠️ No hay vehículos activos registrados. Ve a <strong>Flota</strong> para registrar uno.
-                </p>
-              ) : (
-                <Select value={selectedVehiculo} onValueChange={setSelectedVehiculo}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un vehículo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vehiculos
-                      .filter((v) => v.estado === 'activo')
-                      .map((v) => (
+              {!selectedConductor ? (
+                <div className="text-sm text-gray-400 bg-gray-50 border border-dashed rounded p-3 text-center">
+                  Primero selecciona un conductor
+                </div>
+              ) : (() => {
+                const driver = conductores.find(c => String(c.id) === selectedConductor);
+                const driverVehicles = driver?.vehiculos || [];
+                
+                if (driverVehicles.length === 0) {
+                  return (
+                    <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-3">
+                      ⚠️ Este conductor no tiene vehículos asignados. Vé a la sección <strong>Conductores</strong> para asignarle uno.
+                    </div>
+                  );
+                }
+
+                return (
+                  <Select value={selectedVehiculo} onValueChange={setSelectedVehiculo}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un vehículo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {driverVehicles.map((v: any) => (
                         <SelectItem key={v.id} value={String(v.id)}>
                           {v.marca} {v.modelo} — <span className="font-mono font-semibold">{v.placa}</span>
-                          {v.tipo_servicio ? ` · ${v.tipo_servicio}` : ''}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              )}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
 
             {/* Preview del vehículo seleccionado */}

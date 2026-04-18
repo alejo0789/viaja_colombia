@@ -19,30 +19,39 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Pencil } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Pencil, Truck } from 'lucide-react';
 import StatusBadge from '@/components/admin/StatusBadge';
 import { adminAPI } from '@/services/api';
+import { Badge } from '@/components/ui/badge';
 
 export default function Conductores() {
   const [conductores, setConductores] = useState<any[]>([]);
+  const [vehiculos, setVehiculos] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<any>(null);
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
+    vehiculos_ids: [] as number[],
   });
 
-  // Cargar conductores reales desde el backend
+  // Cargar maestros
+  const fetchData = async () => {
+    try {
+      const [conductoresData, vehiculosData] = await Promise.all([
+        adminAPI.getConductores(),
+        adminAPI.getVehiculos()
+      ]);
+      setConductores(Array.isArray(conductoresData) ? conductoresData : []);
+      setVehiculos(Array.isArray(vehiculosData) ? vehiculosData : []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
   useEffect(() => {
-    const fetchConductores = async () => {
-      try {
-        const data = await adminAPI.getConductores();
-        setConductores(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Error fetching conductores:', error);
-      }
-    };
-    fetchConductores();
+    fetchData();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,27 +62,34 @@ export default function Conductores() {
     }));
   };
 
+  const handleVehicleToggle = (vehiculoId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      vehiculos_ids: prev.vehiculos_ids.includes(vehiculoId)
+        ? prev.vehiculos_ids.filter(id => id !== vehiculoId)
+        : [...prev.vehiculos_ids, vehiculoId]
+    }));
+  };
+
   const handleSaveDriver = async () => {
     try {
+      const driverData = {
+        nombre: formData.nombre,
+        telefono: formData.telefono,
+        whatsapp: formData.telefono,
+        vehiculos_ids: formData.vehiculos_ids,
+      };
+
       if (editingDriver) {
-        await adminAPI.updateConductor(editingDriver.id, {
-          nombre: formData.nombre,
-          telefono: formData.telefono,
-          whatsapp: formData.telefono,
-        });
+        await adminAPI.updateConductor(editingDriver.id, driverData);
       } else {
-        await adminAPI.createConductor({
-          nombre: formData.nombre,
-          telefono: formData.telefono,
-          whatsapp: formData.telefono,
-        });
+        await adminAPI.createConductor(driverData);
       }
-      // Recargar lista desde el backend
-      const data = await adminAPI.getConductores();
-      setConductores(Array.isArray(data) ? data : []);
+      
+      await fetchData();
       setIsDialogOpen(false);
       setEditingDriver(null);
-      setFormData({ nombre: '', telefono: '' });
+      setFormData({ nombre: '', telefono: '', vehiculos_ids: [] });
     } catch (error) {
       console.error('Error saving driver:', error);
     }
@@ -84,6 +100,7 @@ export default function Conductores() {
     setFormData({
       nombre: driver.nombre,
       telefono: driver.telefono || '',
+      vehiculos_ids: (driver.vehiculos || []).map((v: any) => v.id),
     });
     setIsDialogOpen(true);
   };
@@ -103,22 +120,18 @@ export default function Conductores() {
     }
   };
 
-
-
-
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold text-[#1B3A5C]">Gestión de Conductores</h1>
-          <p className="text-gray-600 mt-2">Administra a los conductores de la flota</p>
+          <p className="text-gray-600 mt-2">Administra a los conductores y sus vehículos</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) {
             setEditingDriver(null);
-            setFormData({ nombre: '', telefono: '' });
+            setFormData({ nombre: '', telefono: '', vehiculos_ids: [] });
           }
         }}>
           <DialogTrigger asChild>
@@ -127,15 +140,16 @@ export default function Conductores() {
               Nuevo Conductor
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingDriver ? 'Editar Conductor' : 'Agregar Nuevo Conductor'}</DialogTitle>
               <DialogDescription>
-                {editingDriver ? 'Actualiza los datos del conductor' : 'Completa el formulario para registrar un nuevo conductor'}
+                Completa los datos y selecciona los vehículos asignados al conductor.
               </DialogDescription>
             </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Nombre Completo</label>
                   <Input
                     name="nombre"
@@ -144,12 +158,10 @@ export default function Conductores() {
                     placeholder="Ej: Carlos Rodríguez"
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Teléfono / WhatsApp</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-semibold text-gray-500 bg-gray-100 border border-gray-300 rounded px-2 py-2 select-none">
-                      +57
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-gray-500 bg-gray-100 border border-gray-300 rounded px-2 py-2 select-none">+57</span>
                     <Input
                       name="telefono"
                       value={formData.telefono}
@@ -159,9 +171,39 @@ export default function Conductores() {
                       maxLength={10}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Este número se usa para llamar y para WhatsApp.</p>
                 </div>
               </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-gray-700">Vehículos Asignados</label>
+                <div className="border rounded-md p-4 max-h-[200px] overflow-y-auto space-y-2 bg-gray-50">
+                  {vehiculos.length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">No hay vehículos registrados en la flota.</p>
+                  ) : (
+                    vehiculos.map((v) => (
+                      <div key={v.id} className="flex items-center space-x-3 bg-white p-2 rounded border shadow-sm">
+                        <Checkbox 
+                          id={`veh-${v.id}`}
+                          checked={formData.vehiculos_ids.includes(v.id)}
+                          onCheckedChange={() => handleVehicleToggle(v.id)}
+                        />
+                        <label 
+                          htmlFor={`veh-${v.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex justify-between w-full cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Truck size={14} className="text-blue-500" />
+                            {v.marca} {v.modelo}
+                          </span>
+                          <span className="font-mono font-bold text-blue-700">{v.placa}</span>
+                        </label>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-gray-400">Selecciona uno o varios vehículos de la flota para este conductor.</p>
+              </div>
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
@@ -169,15 +211,15 @@ export default function Conductores() {
               <Button
                 className="bg-[#F97316] hover:bg-orange-600"
                 onClick={handleSaveDriver}
+                disabled={!formData.nombre || !formData.telefono}
               >
-                {editingDriver ? 'Guardar Cambios' : 'Agregar'}
+                {editingDriver ? 'Guardar Cambios' : 'Agregar Conductor'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -185,20 +227,41 @@ export default function Conductores() {
               <TableRow className="border-b border-gray-200">
                 <TableHead>Nombre</TableHead>
                 <TableHead>Teléfono / WhatsApp</TableHead>
+                <TableHead>Vehículos</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {conductores.map((conductor) => (
-                <TableRow key={conductor.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <TableCell className="font-semibold">{conductor.nombre}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{conductor.telefono}</TableCell>
-                  <TableCell>
-                    <StatusBadge estado={conductor.disponible ? 'activo' : 'inactivo'} />
+              {conductores.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-10 text-gray-400">
+                    No hay conductores registrados.
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
+                </TableRow>
+              ) : (
+                conductores.map((conductor) => (
+                  <TableRow key={conductor.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <TableCell className="font-semibold">{conductor.nombre}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{conductor.telefono}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {conductor.vehiculos && conductor.vehiculos.length > 0 ? (
+                          conductor.vehiculos.map((v: any) => (
+                            <Badge key={v.id} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] py-0 px-2">
+                              {v.placa}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">Sin vehículos</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge estado={conductor.disponible ? 'activo' : 'inactivo'} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
                         <Button
                           size="sm"
                           variant="outline"
@@ -215,10 +278,11 @@ export default function Conductores() {
                         >
                           <Pencil size={16} />
                         </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
