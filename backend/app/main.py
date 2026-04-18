@@ -412,7 +412,8 @@ async def get_admin_solicitudes(
             "duracion": f"{int((s.hora_fin - s.hora_inicio).total_seconds() / 60)} min" if s.hora_inicio and s.hora_fin else "N/A",
             "tipo_servicio": "Corporativo",
             "conductor": conductor_nombre,
-            "placa": vehiculo_placa
+            "placa": vehiculo_placa,
+            "observaciones": s.observaciones or ""
         })
         
     return {
@@ -1191,14 +1192,10 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
             
             session.datos_temporales = current_datos
             flag_modified(session, "datos_temporales")
-            session.paso_actual = "CONFIRMAR_SERVICIO"
+            session.paso_actual = "PEDIR_OBSERVACIONES"
             db.commit()
             
-            origen = current_datos.get('origen', 'No especificado')
-            destino = current_datos.get('destino', 'No especificado')
-            hora = current_datos.get('hora', text)
-            
-            response_msg = f"Revisemos tu solicitud:\n📍 Origen: {origen}\n🏁 Destino: {destino}\n⏰ Fecha/Hora: {hora}\n\nResponde *SI* para confirmar o *CANCELAR* para abortar."
+            response_msg = "¿Deseas agregar alguna *observación* o detalle adicional para este servicio? (Si no tienes ninguna, responde 'No'):"
         
     elif paso == "PEDIR_AREA":
         supervisores = db.query(models.Supervisor).filter(
@@ -1227,26 +1224,38 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
                 current_datos["area"] = selected_supervisor.area or selected_supervisor.nombre
                 session.datos_temporales = current_datos
                 flag_modified(session, "datos_temporales")
-                session.paso_actual = "CONFIRMAR_SERVICIO"
+                session.paso_actual = "PEDIR_OBSERVACIONES"
                 db.commit()
                 
-                origen = current_datos.get('origen', 'N/A')
-                destino = current_datos.get('destino', 'N/A')
-                hora = current_datos.get('hora', 'N/A')
-                area = current_datos.get('area', 'N/A')
-                
-                response_msg = (
-                    f"Revisemos tu solicitud:\n"
-                    f"📍 Origen: {origen}\n"
-                    f"🏁 Destino: {destino}\n"
-                    f"⏰ Fecha/Hora: {hora}\n"
-                    f"🏢 Área: {area}\n\n"
-                    f"Responde *SI* para confirmar o *CANCELAR*."
-                )
+                response_msg = "¿Deseas agregar alguna *observación* o detalle adicional para este servicio? (Si no tienes ninguna, responde 'No'):"
             else:
                 response_msg = "No entendí tu elección. Por favor escribe el número de la opción (ej: 1)."
         except:
             response_msg = "Por favor, ingresa el número de la opción elegida."
+
+    elif paso == "PEDIR_OBSERVACIONES":
+        current_datos = dict(session.datos_temporales or {})
+        current_datos["observaciones"] = text if text.lower() != "no" else ""
+        session.datos_temporales = current_datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "CONFIRMAR_SERVICIO"
+        db.commit()
+        
+        origen = current_datos.get('origen', 'N/A')
+        destino = current_datos.get('destino', 'N/A')
+        hora = current_datos.get('hora', 'N/A')
+        area = current_datos.get('area', 'No requerida')
+        obs = current_datos.get('observaciones', 'Ninguna')
+        
+        response_msg = (
+            f"Revisemos tu solicitud:\n"
+            f"📍 Origen: {origen}\n"
+            f"🏁 Destino: {destino}\n"
+            f"⏰ Fecha/Hora: {hora}\n"
+            f"🏢 Área: {area}\n"
+            f"📝 Obs: {obs}\n\n"
+            f"Responde *SI* para confirmar o *CANCELAR*."
+        )
 
     elif paso == "CONFIRMAR_SERVICIO":
         if text.lower() in ["si", "sí", "s", "ok", "confirmar"]:
@@ -1282,6 +1291,7 @@ def _crear_servicio_y_notificar(usuario, session, supervisor, db):
         direccion_origen=datos_finales.get("origen", "Desconocido"),
         direccion_destino=datos_finales.get("destino", "Desconocido"),
         hora_programada=datos_finales.get("hora", "Pronto"),
+        observaciones=datos_finales.get("observaciones", ""),
         estado="PENDIENTE"
     )
     db.add(nuevo_servicio)

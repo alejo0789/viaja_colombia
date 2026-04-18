@@ -210,6 +210,7 @@ export default function Asignaciones() {
                 <TableHead>F. Solicitud</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Pasajero</TableHead>
+                <TableHead>Observaciones</TableHead>
                 <TableHead>Conductor / Placa</TableHead>
                 <TableHead>Programado</TableHead>
                 <TableHead>Estado</TableHead>
@@ -250,6 +251,9 @@ export default function Asignaciones() {
                       </TableCell>
                       <TableCell className="text-sm font-medium">{s.empresa}</TableCell>
                       <TableCell className="text-sm">{s.empleado}</TableCell>
+                      <TableCell className="text-[11px] text-gray-500 max-w-[120px] truncate" title={s.observaciones}>
+                        {s.observaciones || '-'}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <span className="font-semibold text-gray-900 leading-none">{s.conductor}</span>

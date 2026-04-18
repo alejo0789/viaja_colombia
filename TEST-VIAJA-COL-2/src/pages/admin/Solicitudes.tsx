@@ -202,6 +202,7 @@ export default function Solicitudes() {
                 <TableHead>Empleado</TableHead>
                 <TableHead>Origen</TableHead>
                 <TableHead>Destino</TableHead>
+                <TableHead>Observaciones</TableHead>
                 <TableHead>Fecha/Hora Solicitada</TableHead>
                 <TableHead>Creado</TableHead>
                 <TableHead>Estado</TableHead>
@@ -229,6 +230,7 @@ export default function Solicitudes() {
                     <TableCell>{solicitud.empleado || solicitud.empleado_nombre}</TableCell>
                     <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.origen}</TableCell>
                     <TableCell className="text-sm text-gray-600 truncate max-w-[150px]">{solicitud.destino}</TableCell>
+                    <TableCell className="text-sm text-amber-700 bg-amber-50 rounded px-2 py-1 max-w-[150px] truncate">{solicitud.observaciones || '-'}</TableCell>
                     <TableCell className="text-sm font-semibold text-[#1B3A5C] whitespace-nowrap">
                       {solicitud.hora_programada || <span className="text-gray-400 italic">Por confirmar</span>}
                     </TableCell>

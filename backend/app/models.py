@@ -95,9 +95,9 @@ class Servicio(Base):
     estado = Column(String, default="PENDIENTE") # PENDIENTE, AUTORIZADO, RECHAZADO, ASIGNADO, EN_CURSO, COMPLETADO, CANCELADO
     hora_solicitada_texto = Column(String, nullable=True)  # Texto libre que el usuario escribió en WhatsApp
     codigo_verificacion = Column(String, nullable=True)  # Código que el pasajero muestra al conductor
-    
     encuesta_calificacion = Column(Integer, nullable=True)
     encuesta_comentario = Column(String, nullable=True)
+    observaciones = Column(String, nullable=True)
     
     hora_inicio = Column(DateTime(timezone=True), nullable=True)
     hora_fin = Column(DateTime(timezone=True), nullable=True)
