@@ -27,33 +27,21 @@ import MasterGestionEmpresa from './pages/master/MasterGestionEmpresa';
 // Real Autorizador Pages
 import AutorizadorDashboard from './pages/autorizador/AutorizadorDashboard';
 import AutorizadorSolicitudes from './pages/autorizador/AutorizadorSolicitudes';
-import AutorizadorEmpleados from './pages/autorizador/AutorizadorEmpleados';
+import AutorizadorAsignaciones from './pages/autorizador/AutorizadorAsignaciones';
+import AutorizadorPerfil from './pages/autorizador/AutorizadorPerfil';
 
+// Layouts
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
 import ConductorLayout from './layouts/ConductorLayout';
 import AutorizadorLayout from './layouts/AutorizadorLayout';
 import MasterLayout from './layouts/MasterLayout';
 
-function ConductorDashboard() {
-  return <div className="text-2xl font-bold">Dashboard Conductor</div>;
-}
-
-function ConductorServicios() {
-  return <div className="text-2xl font-bold">Mis Servicios</div>;
-}
-
-function ConductorHistorial() {
-  return <div className="text-2xl font-bold">Historial de Servicios</div>;
-}
-
-function ConductorPerfil() {
-  return <div className="text-2xl font-bold">Perfil de Conductor</div>;
-}
-
-function AutorizadorPerfil() {
-  return <div className="text-2xl font-bold">Perfil Autorizador</div>;
-}
+// Placeholders for parts not yet implemented in separate files
+function ConductorDashboard() { return <div className="p-8 text-2xl font-bold">Dashboard Conductor</div>; }
+function ConductorServicios() { return <div className="p-8 text-2xl font-bold">Mis Servicios</div>; }
+function ConductorHistorial() { return <div className="p-8 text-2xl font-bold">Historial de Servicios</div>; }
+function ConductorPerfil() { return <div className="p-8 text-2xl font-bold">Perfil de Conductor</div>; }
 
 const queryClient = new QueryClient();
 
@@ -114,7 +102,7 @@ export default function App() {
             >
               <Route path="dashboard" element={<AutorizadorDashboard />} />
               <Route path="solicitudes" element={<AutorizadorSolicitudes />} />
-              <Route path="empleados" element={<AutorizadorEmpleados />} />
+              <Route path="asignaciones" element={<AutorizadorAsignaciones />} />
               <Route path="perfil" element={<AutorizadorPerfil />} />
             </Route>
 

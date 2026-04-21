@@ -7,43 +7,36 @@ export default function AutorizadorLayout() {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <div className="w-64 bg-green-900 text-white flex flex-col">
-        <div className="p-6 border-b border-green-800">
-          <h2 className="text-xl font-bold">VIAJA-COL Autorizador</h2>
-          <p className="text-sm text-green-300 mt-1">{user?.nombre}</p>
+      <div className="w-64 bg-[#1B3A5C] text-white flex flex-col shadow-2xl">
+        <div className="p-8 border-b border-white/10">
+          <h2 className="text-2xl font-black tracking-tighter">VIAJA-COL</h2>
+          <div className="flex flex-col mt-2">
+            <span className="text-[10px] font-black uppercase text-blue-400 tracking-[0.2em]">Autorizador</span>
+            <span className="text-sm font-bold text-gray-200 mt-1">{user?.nombre}</span>
+          </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-          <a
-            href="/autorizador/dashboard"
-            className="block px-4 py-2 rounded-lg hover:bg-green-800 transition"
-          >
-            Dashboard
-          </a>
-          <a
-            href="/autorizador/solicitudes"
-            className="block px-4 py-2 rounded-lg hover:bg-green-800 transition"
-          >
-            Solicitudes por Autorizar
-          </a>
-          <a
-            href="/autorizador/empleados"
-            className="block px-4 py-2 rounded-lg hover:bg-green-800 transition"
-          >
-            Empleados
-          </a>
-          <a
-            href="/autorizador/perfil"
-            className="block px-4 py-2 rounded-lg hover:bg-green-800 transition"
-          >
-            Perfil
-          </a>
+        <nav className="flex-1 p-6 space-y-3">
+          {[
+            { href: '/autorizador/dashboard', label: 'Dashboard' },
+            { href: '/autorizador/solicitudes', label: 'Solicitudes' },
+            { href: '/autorizador/asignaciones', label: 'Asignaciones' },
+            { href: '/autorizador/perfil', label: 'Mi Perfil' },
+          ].map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className="block px-4 py-3 rounded-2xl hover:bg-white/10 hover:translate-x-1 transition-all duration-300 font-bold text-sm text-blue-50/80 hover:text-white"
+            >
+              {item.label}
+            </a>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-green-800">
+        <div className="p-6 border-t border-white/10">
           <button
             onClick={signOut}
-            className="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition"
+            className="w-full bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white px-4 py-3 rounded-2xl transition-all duration-300 font-black text-xs uppercase tracking-widest border border-rose-600/20"
           >
             Cerrar Sesión
           </button>

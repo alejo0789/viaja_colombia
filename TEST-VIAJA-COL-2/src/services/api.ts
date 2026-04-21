@@ -382,6 +382,10 @@ export const autorizadorAPI = {
       method: 'PATCH',
     });
   },
+
+  getAsignaciones: async () => {
+    return apiRequest('/api/autorizador/asignaciones');
+  },
 };
 
 // ============================================================================
@@ -478,10 +482,10 @@ export const perfilAPI = {
     });
   },
 
-  cambiarPassword: async (passwordActual: string, passwordNueva: string) => {
-    return apiRequest('/api/perfil/cambiar-password', {
+  cambiarPassword: async (new_password: string) => {
+    return apiRequest('/api/auth/change-password', {
       method: 'POST',
-      body: JSON.stringify({ passwordActual, passwordNueva }),
+      body: JSON.stringify({ new_password }),
     });
   },
 };

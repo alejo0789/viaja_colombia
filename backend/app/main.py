@@ -1467,6 +1467,7 @@ def _crear_servicio_y_notificar(usuario, session, supervisor, db):
     nuevo_servicio = models.Servicio(
         usuario_id=usuario.id,
         empresa_id=usuario.empresa_id,
+        supervisor_id=supervisor.id if supervisor else None,
         direccion_origen=datos_finales.get("origen", "Desconocido"),
         direccion_destino=datos_finales.get("destino", "Desconocido"),
         hora_programada=datos_finales.get("hora", "Pronto"),
@@ -1696,13 +1697,24 @@ async def get_autorizador_stats(request: Request, desde: str = None, hasta: str 
     
     token = auth_header.replace("Bearer ", "")
     payload = auth.decode_token(token)
-    empresa_id = payload.get("empresaClienteId")
+    user_id = payload.get("userId")
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
+    
+    if not user: throw_http_err(404, "Usuario no encontrado")
+    
+    empresa_id = user.empresa_cliente_id
     
     if not empresa_id:
         return {"resumen": {"total_servicios": 0, "servicios_finalizados": 0, "servicios_autorizados": 0, "servicios_rechazados": 0, "servicios_pendientes": 0, "costo_total": 0, "duracion_promedio_min": 0, "costo_excedentes": 0}}
 
     # Base query filtrada por empresa
     q = db.query(models.Servicio).filter(models.Servicio.empresa_id == empresa_id)
+    
+    # Si es autorizador, filtrar por su supervisor_id
+    if user.rol == 4:
+        supervisor = db.query(models.Supervisor).filter(models.Supervisor.email == user.email).first()
+        if supervisor:
+            q = q.filter(models.Servicio.supervisor_id == supervisor.id)
     
     # Aplicar filtros de fecha si existen
     from datetime import datetime
@@ -1721,6 +1733,8 @@ async def get_autorizador_stats(request: Request, desde: str = None, hasta: str 
     
     total = q.count()
     finalizados = q.filter(models.Servicio.estado == "COMPLETADO").count()
+    asignados = q.filter(models.Servicio.estado == "ASIGNADO").count()
+    en_curso = q.filter(models.Servicio.estado == "EN_CURSO").count()
     autorizados = q.filter(models.Servicio.estado == "AUTORIZADO").count()
     rechazados = q.filter(models.Servicio.estado == "RECHAZADO").count()
     pendientes = q.filter(models.Servicio.estado == "PENDIENTE").count()
@@ -1741,6 +1755,10 @@ async def get_autorizador_stats(request: Request, desde: str = None, hasta: str 
         ).count()
         historico.append({"mes": meses_nombres[mes_idx], "servicios": conteo})
 
+    # Calcular costo total de completados
+    from sqlalchemy import func
+    costo_total = q.filter(models.Servicio.estado == "COMPLETADO").with_entities(func.sum(models.Servicio.precio)).scalar() or 0
+
     return {
         "resumen": {
             "total_servicios": total,
@@ -1748,16 +1766,18 @@ async def get_autorizador_stats(request: Request, desde: str = None, hasta: str 
             "servicios_autorizados": autorizados,
             "servicios_rechazados": rechazados,
             "servicios_pendientes": pendientes,
-            "costo_total": 0,
+            "costo_total": costo_total,
             "duracion_promedio_min": 0,
             "costo_excedentes": 0
         },
         "graficas": {
             "tendencia": historico,
             "distribucion": [
-                {"name": "Autorizados", "value": autorizados},
-                {"name": "Rechazados", "value": rechazados},
-                {"name": "Pendientes", "value": pendientes}
+                {"name": "Finalizados", "value": finalizados},
+                {"name": "Pendientes", "value": pendientes},
+                {"name": "Por Asignar", "value": autorizados},
+                {"name": "En Curso", "value": en_curso + asignados},
+                {"name": "Rechazados", "value": rechazados}
             ]
         }
     }
@@ -1767,9 +1787,20 @@ async def get_autorizador_solicitudes(request: Request, estado: str = None, db: 
     auth_header = request.headers.get("Authorization")
     token = auth_header.replace("Bearer ", "")
     payload = auth.decode_token(token)
-    empresa_id = payload.get("empresaClienteId")
+    user_id = payload.get("userId")
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
+    
+    if not user: throw_http_err(404, "Usuario no encontrado")
+    
+    empresa_id = user.empresa_cliente_id
     
     query = db.query(models.Servicio).filter(models.Servicio.empresa_id == empresa_id)
+    
+    # Si es autorizador, filtrar por su supervisor_id
+    if user.rol == 4:
+        supervisor = db.query(models.Supervisor).filter(models.Supervisor.email == user.email).first()
+        if supervisor:
+            query = query.filter(models.Servicio.supervisor_id == supervisor.id)
     
     if estado:
         # Mapeo de estados del frontend a la base de datos
@@ -1923,3 +1954,93 @@ async def get_autorizador_empleado_servicios(request: Request, empleado_id: int,
         })
         
     return {"servicios": result}
+
+@app.get("/api/autorizador/asignaciones")
+async def get_autorizador_asignaciones(request: Request, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header: throw_http_err(401, "No autorizado")
+    
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    user_id = payload.get("userId")
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
+    
+    if not user: throw_http_err(404, "Usuario no encontrado")
+    
+    empresa_id = user.empresa_cliente_id
+    
+    # Buscar el supervisor asociado
+    supervisor = db.query(models.Supervisor).filter(models.Supervisor.email == user.email).first()
+    if not supervisor:
+        return {"data": []}
+        
+    # Filtrar solo servicios que este supervisor ha gestionado y que ya tienen asignación
+    query = db.query(models.Servicio).filter(
+        models.Servicio.empresa_id == empresa_id,
+        models.Servicio.supervisor_id == supervisor.id,
+        models.Servicio.estado.in_(["ASIGNADO", "EN_CURSO", "COMPLETADO"])
+    )
+    
+    solicitudes = query.order_by(models.Servicio.created_at.desc()).all()
+    
+    # Formatear tal cual como se le muestra al administrador/auditor
+    result = []
+    for s in solicitudes:
+        empresa_nombre = s.empresa.nombre if s.empresa else "Empresa N/A"
+        empleado_nombre = s.usuario.nombre if s.usuario else "Desconocido"
+        fecha_creacion = s.created_at.strftime("%b %d, %I:%M %p") if s.created_at else "No disp."
+        conductor_nombre = s.conductor.nombre if s.conductor else "Sin asignar"
+        vehiculo_placa = s.vehiculo_asignado or "Sin asignar"
+        
+        result.append({
+            "id": f"SOL-{s.id}",
+            "original_id": s.id,
+            "empresa": empresa_nombre,
+            "empleado": empleado_nombre,
+            "origen": s.direccion_origen,
+            "destino": s.direccion_destino,
+            "estado": s.estado,
+            "fecha": fecha_creacion,
+            "hora_programada": s.hora_programada or "Por confirmar",
+            "hora_inicio": s.hora_inicio.strftime("%b %d, %H:%M") if s.hora_inicio else "N/A",
+            "hora_fin": s.hora_fin.strftime("%b %d, %H:%M") if s.hora_fin else "N/A",
+            "hora_inicio_raw": s.hora_inicio.isoformat() if s.hora_inicio else None,
+            "hora_fin_raw": s.hora_fin.isoformat() if s.hora_fin else None,
+            "duracion": f"{int((s.hora_fin - s.hora_inicio).total_seconds() / 60)} min" if s.hora_inicio and s.hora_fin else "N/A",
+            "tipo_servicio": "Corporativo",
+            "conductor": conductor_nombre,
+            "placa": vehiculo_placa,
+            "observaciones": s.observaciones or "",
+            "precio": s.precio or 0,
+            "autorizador_nombre": s.supervisor.nombre if s.supervisor else "N/A",
+            "autorizador_area": s.supervisor.area if s.supervisor else "N/A"
+        })
+        
+    return {"data": result}
+
+@app.post("/api/auth/change-password")
+async def change_password(request: Request, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header: throw_http_err(401, "No autorizado")
+    
+    token = auth_header.replace("Bearer ", "")
+    payload = auth.decode_token(token)
+    user_id = payload.get("userId")
+    
+    body = await request.json()
+    new_password = body.get("new_password")
+    
+    if not new_password or len(new_password) < 6:
+        throw_http_err(400, "La contraseña debe tener al menos 6 caracteres")
+        
+    user = db.query(models.UsuarioDashboard).filter(models.UsuarioDashboard.id == int(user_id)).first()
+    if not user:
+        user = db.query(models.Usuario).filter(models.Usuario.id == int(user_id)).first()
+        
+    if not user:
+        throw_http_err(404, "Usuario no encontrado")
+        
+    user.password_hash = auth.get_password_hash(new_password)
+    db.commit()
+    
+    return {"message": "Contraseña actualizada con éxito"}
