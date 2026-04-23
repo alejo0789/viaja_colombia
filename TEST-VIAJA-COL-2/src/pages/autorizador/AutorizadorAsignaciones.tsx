@@ -255,7 +255,16 @@ const AutorizadorAsignaciones = () => {
                                 ) : (
                                     filteredAsignaciones.map((s: any) => (
                                         <TableRow key={s.id} className="hover:bg-indigo-50/30 transition-colors border-b border-slate-50/50">
-                                            <TableCell className="font-black text-blue-900 pl-6 text-xs">{s.id}</TableCell>
+                                            <TableCell className="pl-6">
+                                                <div className="flex flex-col">
+                                                    <span className="font-black text-blue-900 text-xs">{s.id}</span>
+                                                    {s.es_retorno && (
+                                                        <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold w-fit mt-1">
+                                                            🔄 RETORNO
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-[10px] text-gray-400 font-medium">
                                                 {s.fecha}
                                             </TableCell>

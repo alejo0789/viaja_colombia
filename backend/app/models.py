@@ -103,6 +103,9 @@ class Servicio(Base):
     hora_inicio = Column(DateTime(timezone=True), nullable=True)
     hora_fin = Column(DateTime(timezone=True), nullable=True)
     
+    es_retorno = Column(Boolean, default=False)
+    retorno_de_id = Column(Integer, ForeignKey("services.id"), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

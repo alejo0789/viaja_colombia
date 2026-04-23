@@ -250,7 +250,23 @@ export default function Solicitudes() {
               ) : (
                 filteredSolicitudes.map((solicitud) => (
                   <TableRow key={solicitud.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <TableCell className="font-semibold">{solicitud.id}</TableCell>
+                    <TableCell className="font-semibold">
+                      <div className="flex flex-col">
+                        <span>{solicitud.id}</span>
+                        {solicitud.es_retorno && (
+                          <div className="flex flex-col mt-1 gap-1">
+                            <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold w-fit">
+                              🔄 RETORNO
+                            </span>
+                            {solicitud.retorno_de_id && (
+                              <span className="text-[8px] text-gray-400 italic">
+                                de {solicitud.retorno_de_id}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium text-blue-800">{solicitud.empresa || 'N/A'}</TableCell>
                     <TableCell>{solicitud.empleado || solicitud.empleado_nombre}</TableCell>
                     <TableCell>

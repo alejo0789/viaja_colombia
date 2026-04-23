@@ -416,7 +416,9 @@ async def get_admin_solicitudes(
             "observaciones": s.observaciones or "",
             "precio": s.precio or 0,
             "autorizador_nombre": s.supervisor.nombre if s.supervisor else "N/A",
-            "autorizador_area": s.supervisor.area if s.supervisor else "N/A"
+            "autorizador_area": s.supervisor.area if s.supervisor else "N/A",
+            "es_retorno": s.es_retorno,
+            "retorno_de_id": f"SOL-{s.retorno_de_id}" if s.retorno_de_id else None
         })
         
     return {
@@ -1345,16 +1347,63 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
     elif paso == "PEDIR_HORA":
         current_datos = dict(session.datos_temporales or {})
         current_datos["hora"] = text
+        session.datos_temporales = current_datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "PREGUNTAR_RETORNO"
+        db.commit()
         
-        # Buscar supervisores de la empresa para ver si pedimos área ahora
+        response_msg = "¿Deseas programar un servicio de retorno para este viaje? (Responde SI o NO):"
+
+    elif paso == "PREGUNTAR_RETORNO":
+        if text.lower() in ["si", "sí", "s", "ok"]:
+            session.paso_actual = "PEDIR_HORA_RETORNO"
+            db.commit()
+            response_msg = "Por favor dime la *fecha y hora programada para el retorno* (ejemplo: 'Hoy a las 6pm' o '25 de Oct a las 18:00'):"
+        elif text.lower() in ["no", "n"]:
+            current_datos = dict(session.datos_temporales or {})
+            
+            # Buscar supervisores de la empresa para ver si pedimos área ahora
+            supervisores = db.query(models.Supervisor).filter(
+                models.Supervisor.empresa_id == usuario.empresa_id,
+                models.Supervisor.activo == True
+            ).all()
+
+            if len(supervisores) > 1:
+                session.paso_actual = "PEDIR_AREA"
+                db.commit()
+                
+                areas_list = ""
+                for i, s in enumerate(supervisores, 1):
+                    area_name = (s.area or s.nombre or f"Supervisor {i}").strip()
+                    areas_list += f"{i}. {area_name}\n"
+                
+                response_msg = f"Perfecto. Tu empresa tiene varios supervisores. ¿Qué área debe autorizar este viaje?\n\n{areas_list}"
+            else:
+                if len(supervisores) == 1:
+                    current_datos["supervisor_id"] = supervisores[0].id
+                    current_datos["area"] = supervisores[0].area or supervisores[0].nombre
+                
+                session.datos_temporales = current_datos
+                flag_modified(session, "datos_temporales")
+                session.paso_actual = "PEDIR_OBSERVACIONES"
+                db.commit()
+                
+                response_msg = "¿Deseas agregar alguna *observación* o detalle adicional para este servicio? (Si no tienes ninguna, responde 'No'):"
+        else:
+            response_msg = "No entendí. ¿Deseas programar un servicio de retorno para este viaje? (Responde SI o NO):"
+
+    elif paso == "PEDIR_HORA_RETORNO":
+        current_datos = dict(session.datos_temporales or {})
+        current_datos["hora_retorno"] = text
+        session.datos_temporales = current_datos
+        flag_modified(session, "datos_temporales")
+        
         supervisores = db.query(models.Supervisor).filter(
             models.Supervisor.empresa_id == usuario.empresa_id,
             models.Supervisor.activo == True
         ).all()
 
         if len(supervisores) > 1:
-            session.datos_temporales = current_datos
-            flag_modified(session, "datos_temporales")
             session.paso_actual = "PEDIR_AREA"
             db.commit()
             
@@ -1423,14 +1472,17 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
         origen = current_datos.get('origen', 'N/A')
         destino = current_datos.get('destino', 'N/A')
         hora = current_datos.get('hora', 'N/A')
+        hora_retorno = current_datos.get('hora_retorno')
         area = current_datos.get('area', 'No requerida')
         obs = current_datos.get('observaciones', 'Ninguna')
+        
+        retorno_str = f"\n🔄 Retorno: {hora_retorno}" if hora_retorno else ""
         
         response_msg = (
             f"Revisemos tu solicitud:\n"
             f"📍 Origen: {origen}\n"
             f"🏁 Destino: {destino}\n"
-            f"⏰ Fecha/Hora: {hora}\n"
+            f"⏰ Fecha/Hora: {hora}{retorno_str}\n"
             f"🏢 Área: {area}\n"
             f"📝 Obs: {obs}\n\n"
             f"Responde *SI* para confirmar o *CANCELAR*."
@@ -1463,7 +1515,7 @@ def handle_user_session(usuario: models.Usuario, text: str, db: Session):
 def _crear_servicio_y_notificar(usuario, session, supervisor, db):
     datos_finales = dict(session.datos_temporales or {})
     
-    # Crear el servicio
+    # Crear el servicio principal
     nuevo_servicio = models.Servicio(
         usuario_id=usuario.id,
         empresa_id=usuario.empresa_id,
@@ -1478,6 +1530,25 @@ def _crear_servicio_y_notificar(usuario, session, supervisor, db):
     db.commit()
     db.refresh(nuevo_servicio)
     
+    hora_retorno = datos_finales.get("hora_retorno")
+    servicio_retorno = None
+    if hora_retorno:
+        servicio_retorno = models.Servicio(
+            usuario_id=usuario.id,
+            empresa_id=usuario.empresa_id,
+            supervisor_id=supervisor.id if supervisor else None,
+            direccion_origen=datos_finales.get("destino", "Desconocido"),
+            direccion_destino=datos_finales.get("origen", "Desconocido"),
+            hora_programada=hora_retorno,
+            observaciones="[RETORNO] " + datos_finales.get("observaciones", ""),
+            estado="PENDIENTE",
+            es_retorno=True,
+            retorno_de_id=nuevo_servicio.id
+        )
+        db.add(servicio_retorno)
+        db.commit()
+        db.refresh(servicio_retorno)
+    
     # Resetear sesion
     session.paso_actual = "INICIO"
     session.datos_temporales = {}
@@ -1486,7 +1557,7 @@ def _crear_servicio_y_notificar(usuario, session, supervisor, db):
     
     hora_str = datos_finales.get('hora', 'No especificado')
     
-    # Preparar componentes de la plantilla autorizacion_supervisor
+    # Preparar componentes de la plantilla autorizacion_supervisor para servicio principal
     components = [
         {
             "type": "body",
@@ -1512,17 +1583,54 @@ def _crear_servicio_y_notificar(usuario, session, supervisor, db):
         }
     ]
     
-    area_msg = f" del área {supervisor.area}" if supervisor.area else ""
-    return [
-        {"action": "send_message", "phone": usuario.whatsapp, "message": f"Tu solicitud ha sido enviada al supervisor{area_msg} para su autorización. Te notificaremos pronto."},
-        {
+    area_msg = f" del área {supervisor.area}" if supervisor and supervisor.area else ""
+    mensajes = [
+        {"action": "send_message", "phone": usuario.whatsapp, "message": f"Tu solicitud ha sido enviada al supervisor{area_msg} para su autorización. Te notificaremos pronto."}
+    ]
+    
+    if supervisor:
+        mensajes.append({
             "action": "send_template", 
             "phone": supervisor.whatsapp, 
             "template_name": "autorizacion_supervisor",
             "components": components,
             "language": "es_CO"
-        }
-    ]
+        })
+        
+        if servicio_retorno:
+            retorno_components = [
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": f"{servicio_retorno.id} (RETORNO)"},
+                        {"type": "text", "text": usuario.nombre},
+                        {"type": "text", "text": servicio_retorno.direccion_origen},
+                        {"type": "text", "text": servicio_retorno.direccion_destino},
+                        {"type": "text", "text": hora_retorno}
+                    ]
+                },
+                {
+                    "type": "button",
+                    "sub_type": "quick_reply",
+                    "index": 0,
+                    "parameters": [{"type": "payload", "payload": f"AUTORIZAR {servicio_retorno.id}"}]
+                },
+                {
+                    "type": "button",
+                    "sub_type": "quick_reply",
+                    "index": 1,
+                    "parameters": [{"type": "payload", "payload": f"RECHAZAR {servicio_retorno.id}"}]
+                }
+            ]
+            mensajes.append({
+                "action": "send_template", 
+                "phone": supervisor.whatsapp, 
+                "template_name": "autorizacion_supervisor",
+                "components": retorno_components,
+                "language": "es_CO"
+            })
+            
+    return mensajes
             
     return {"action": "send_message", "phone": usuario.whatsapp, "message": response_msg}
 

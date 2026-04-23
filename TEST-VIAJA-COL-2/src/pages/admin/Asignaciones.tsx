@@ -287,7 +287,16 @@ export default function Asignaciones() {
 
                   return (
                     <TableRow key={s.id} className="hover:bg-gray-50 transition-colors">
-                      <TableCell className="font-bold text-blue-900">{s.id}</TableCell>
+                      <TableCell className="font-bold text-blue-900">
+                        <div className="flex flex-col">
+                          <span>{s.id}</span>
+                          {s.es_retorno && (
+                            <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold w-fit mt-1">
+                              🔄 RETORNO
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-xs text-gray-400">
                         <div className="flex flex-col">
                           <span>{s.fecha?.split(',')[0]}</span>
