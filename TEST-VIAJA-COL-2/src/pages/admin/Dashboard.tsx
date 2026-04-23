@@ -8,6 +8,8 @@ import {
   Clock,
   MapPin,
   FilterX,
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -68,28 +70,28 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total Solicitudes',
+      title: 'Solicitudes',
       value: stats.totalSolicitudes,
       icon: BarChart3,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
-      title: 'Vehículos Activos',
+      title: 'Vehículos',
       value: stats.vehiculosActivos,
       icon: Truck,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Conductores Activos',
+      title: 'Conductores',
       value: stats.conductoresActivos,
       icon: Users,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
     {
-      title: 'Alertas Activas',
+      title: 'Alertas',
       value: stats.alertasActivas,
       icon: AlertCircle,
       color: 'text-orange-600',
@@ -98,22 +100,22 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-[#1B3A5C]">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Bienvenido al panel de control administrativo</p>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Dashboard</h1>
+        <p className="text-slate-500 font-medium">Panel de control administrativo en tiempo real</p>
       </div>
 
       {/* Filters Toolbar */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex gap-4 flex-wrap items-end">
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-xs text-gray-500 mb-1 block">Empresa</label>
+      <Card className="border-slate-200 shadow-sm overflow-hidden rounded-2xl">
+        <CardContent className="p-4 md:p-6 bg-white">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Empresa</label>
               <Select value={filterEmpresa} onValueChange={setFilterEmpresa}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas las empresas" />
+                <SelectTrigger className="h-11 rounded-xl bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las empresas</SelectItem>
@@ -124,25 +126,30 @@ export default function Dashboard() {
               </Select>
             </div>
             
-            <div className="w-[180px]">
-              <label className="text-xs text-gray-500 mb-1 block">Filtrar por Mes</label>
-              <Input 
-                type="month" 
-                value={filterMes} 
-                onChange={(e) => {
-                    setFilterMes(e.target.value);
-                    if (e.target.value) {
-                        setFilterDesde('');
-                        setFilterHasta('');
-                    }
-                }} 
-              />
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Mes</label>
+              <div className="relative">
+                <Input 
+                  type="month" 
+                  className="h-11 rounded-xl bg-slate-50 border-slate-200 pl-10"
+                  value={filterMes} 
+                  onChange={(e) => {
+                      setFilterMes(e.target.value);
+                      if (e.target.value) {
+                          setFilterDesde('');
+                          setFilterHasta('');
+                      }
+                  }} 
+                />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              </div>
             </div>
 
-            <div className="w-[160px]">
-              <label className="text-xs text-gray-500 mb-1 block">Desde (Fecha)</label>
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Desde</label>
               <Input 
                 type="date" 
+                className="h-11 rounded-xl bg-slate-50 border-slate-200"
                 value={filterDesde} 
                 onChange={(e) => {
                     setFilterDesde(e.target.value);
@@ -151,10 +158,11 @@ export default function Dashboard() {
               />
             </div>
 
-            <div className="w-[160px]">
-              <label className="text-xs text-gray-500 mb-1 block">Hasta (Fecha)</label>
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1 tracking-wider">Hasta</label>
               <Input 
                 type="date" 
+                className="h-11 rounded-xl bg-slate-50 border-slate-200"
                 value={filterHasta} 
                 onChange={(e) => {
                     setFilterHasta(e.target.value);
@@ -165,6 +173,7 @@ export default function Dashboard() {
 
             <Button 
                 variant="outline" 
+                className="h-11 rounded-xl border-slate-200 hover:bg-slate-50 text-slate-600 font-bold"
                 onClick={() => {
                     setFilterEmpresa('all');
                     setFilterMes('');
@@ -173,26 +182,26 @@ export default function Dashboard() {
                 }}
             >
                 <FilterX size={16} className="mr-2" />
-                Limpiar
+                Limpiar Filtros
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="overflow-hidden">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
+            <Card key={stat.title} className="overflow-hidden border-slate-200 shadow-sm rounded-2xl hover:shadow-md transition-all group">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm text-gray-600 mb-2">{stat.title}</p>
-                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-[10px] md:text-xs uppercase font-bold text-slate-400 mb-1 tracking-wider">{stat.title}</p>
+                    <p className="text-2xl md:text-3xl font-black text-slate-900">{stat.value}</p>
                   </div>
-                  <div className={`${stat.bgColor} p-3 rounded-lg`}>
-                    <Icon className={`${stat.color} h-6 w-6`} />
+                  <div className={`${stat.bgColor} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
+                    <Icon className={`${stat.color} h-5 w-5 md:h-6 md:w-6`} />
                   </div>
                 </div>
               </CardContent>
@@ -201,45 +210,57 @@ export default function Dashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         {/* Recent Solicitudes */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Solicitudes Recientes</CardTitle>
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-bold text-slate-900">Solicitudes Recientes</CardTitle>
+                <Button variant="ghost" size="sm" className="text-blue-600 font-bold text-xs hover:bg-blue-50 rounded-lg">
+                  Ver todas <ChevronRight size={14} className="ml-1" />
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentSolicitudes.map((solicitud) => (
+            <CardContent className="p-0">
+              <div className="divide-y divide-slate-100">
+                {recentSolicitudes.length > 0 ? recentSolicitudes.map((solicitud) => (
                   <div
                     key={solicitud.id}
-                    className="flex items-start justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                    className="flex items-start justify-between p-4 md:p-5 hover:bg-slate-50 transition-colors group cursor-pointer"
                   >
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-4">
-                        <span className="font-semibold text-gray-900">{solicitud.id}</span>
+                    <div className="flex-1 min-w-0 pr-4">
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <span className="font-bold text-slate-400 text-xs">#{solicitud.id}</span>
                         <StatusBadge estado={solicitud.estado} />
                       </div>
-                      <p className="text-sm font-medium text-blue-900">{solicitud.empresa || "Empresa N/A"}</p>
-                      <p className="text-sm text-gray-600">👤 {solicitud.empleado}</p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <MapPin size={16} />
-                          <span>{solicitud.origen}</span>
+                      <p className="text-sm font-bold text-slate-900 truncate mb-0.5">{solicitud.empresa || "Sin Empresa"}</p>
+                      <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1">
+                        <Users size={12} /> {solicitud.empleado}
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600 bg-white border border-slate-100 px-2 py-1 rounded-lg w-fit">
+                          <MapPin size={12} className="text-blue-500" />
+                          <span className="truncate max-w-[120px] md:max-w-none">{solicitud.origen}</span>
                         </div>
-                        <span>→</span>
-                        <div className="flex items-center gap-1">
-                          <MapPin size={16} />
-                          <span>{solicitud.destino}</span>
+                        <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600 bg-white border border-slate-100 px-2 py-1 rounded-lg w-fit">
+                          <MapPin size={12} className="text-green-500" />
+                          <span className="truncate max-w-[120px] md:max-w-none">{solicitud.destino}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="outline">{solicitud.tipo_servicio}</Badge>
-                      <p className="text-xs text-gray-500 mt-2">{solicitud.fecha}</p>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px] font-bold">
+                        {solicitud.tipo_servicio}
+                      </Badge>
+                      <p className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+                        {solicitud.fecha}
+                      </p>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="p-12 text-center text-slate-400 italic">No hay solicitudes recientes.</div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -248,69 +269,72 @@ export default function Dashboard() {
         {/* Stats Column */}
         <div className="space-y-6">
           {/* Solicitudes por Empresa */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Solicitudes por Empresa</CardTitle>
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50">
+              <CardTitle className="text-base font-bold text-slate-900">Empresas con más flujo</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            <CardContent className="p-4">
+              <div className="space-y-2">
                 {stats?.solicitudesPorEmpresa && stats.solicitudesPorEmpresa.length > 0 ? (
                   stats.solicitudesPorEmpresa.map((emp: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg bg-gray-50">
-                      <span className="font-medium text-gray-800 text-sm truncate max-w-[150px]">{emp.empresa}</span>
-                      <Badge variant="secondary" className="bg-[#1B3A5C] text-white">
-                        {emp.count} servicios
+                    <div key={idx} className="flex items-center justify-between p-3 border border-slate-100 rounded-xl bg-white hover:border-blue-200 transition-colors">
+                      <span className="font-bold text-slate-700 text-sm truncate max-w-[150px]">{emp.empresa}</span>
+                      <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none rounded-lg px-2.5">
+                        {emp.count}
                       </Badge>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-6">No hay datos por el momento</p>
+                  <p className="text-sm text-slate-500 text-center py-6">No hay datos por el momento</p>
                 )}
               </div>
             </CardContent>
           </Card>
 
           {/* Active Alerts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Alertas Activas</CardTitle>
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/50">
+              <CardTitle className="text-base font-bold text-slate-900">Alertas Activas</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4">
               <div className="space-y-3">
                 {activeAlerts.length > 0 ? (
                   activeAlerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className={`p-4 rounded-lg border-l-4 ${
+                      className={`p-4 rounded-xl border-l-4 shadow-sm ${
                         alert.nivel === 'critical'
-                          ? 'bg-red-50 border-red-400'
+                          ? 'bg-red-50 border-red-500'
                           : alert.nivel === 'warning'
-                            ? 'bg-yellow-50 border-yellow-400'
-                            : 'bg-blue-50 border-blue-400'
+                            ? 'bg-amber-50 border-amber-500'
+                            : 'bg-blue-50 border-blue-500'
                       }`}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-start gap-3">
                         <AlertCircle
-                          size={18}
+                          size={20}
                           className={
                             alert.nivel === 'critical'
                               ? 'text-red-600'
                               : alert.nivel === 'warning'
-                                ? 'text-yellow-600'
+                                ? 'text-amber-600'
                                 : 'text-blue-600'
                           }
                         />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{alert.mensaje}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {new Date(alert.fecha).toLocaleString('es-CO')}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 leading-tight mb-1">{alert.mensaje}</p>
+                          <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                            <Clock size={10} /> {new Date(alert.fecha).toLocaleString('es-CO')}
                           </p>
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-6">No hay alertas activas</p>
+                  <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                    <CheckCircle2 size={32} className="text-green-500/30 mb-2" />
+                    <p className="text-sm font-medium italic">Sistema sin alertas</p>
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -320,3 +344,22 @@ export default function Dashboard() {
     </div>
   );
 }
+
+// Helper icons that were missing
+const CheckCircle2 = ({ size, className }: { size?: number, className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width={size || 24} 
+    height={size || 24} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
