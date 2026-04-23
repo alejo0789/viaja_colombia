@@ -6,7 +6,8 @@ from sqlalchemy.orm.attributes import flag_modified
 import json
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+COLOMBIA_TZ = timezone(timedelta(hours=-5))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -165,7 +166,7 @@ async def forgot_password(payload: dict, db: Session = Depends(get_db)):
     # Generate token
     token = secrets.token_urlsafe(32)
     user.reset_token = token
-    user.reset_token_expires = datetime.now() + timedelta(hours=1)
+    user.reset_token_expires = datetime.now(COLOMBIA_TZ) + timedelta(hours=1)
     db.commit()
     
     # In a real app, send email here. For now, log it.
@@ -183,7 +184,7 @@ async def reset_password(payload: dict, db: Session = Depends(get_db)):
     
     user = db.query(models.UsuarioDashboard).filter(
         models.UsuarioDashboard.reset_token == token,
-        models.UsuarioDashboard.reset_token_expires > datetime.now()
+        models.UsuarioDashboard.reset_token_expires > datetime.now(COLOMBIA_TZ)
     ).first()
     
     if not user:
@@ -389,7 +390,8 @@ async def get_admin_solicitudes(
         empleado_nombre = s.usuario.nombre if s.usuario else "Desconocido"
         
         # Fecha en que fue creado el registro y hora a la que fue programado
-        fecha_creacion = s.created_at.strftime("%b %d, %I:%M %p") if s.created_at else "No disp."
+        fecha_col = s.created_at.astimezone(COLOMBIA_TZ) if s.created_at else None
+        fecha_creacion = fecha_col.strftime("%b %d, %I:%M %p") if fecha_col else "No disp."
         
         # Conductor y vehículo asignado
         conductor_nombre = s.conductor.nombre if s.conductor else "Sin asignar"
@@ -405,8 +407,8 @@ async def get_admin_solicitudes(
             "estado": s.estado,
             "fecha": fecha_creacion,
             "hora_programada": s.hora_programada or "Por confirmar",
-            "hora_inicio": s.hora_inicio.strftime("%b %d, %H:%M") if s.hora_inicio else "N/A",
-            "hora_fin": s.hora_fin.strftime("%b %d, %H:%M") if s.hora_fin else "N/A",
+            "hora_inicio": s.hora_inicio.astimezone(COLOMBIA_TZ).strftime("%b %d, %H:%M") if s.hora_inicio else "N/A",
+            "hora_fin": s.hora_fin.astimezone(COLOMBIA_TZ).strftime("%b %d, %H:%M") if s.hora_fin else "N/A",
             "hora_inicio_raw": s.hora_inicio.isoformat() if s.hora_inicio else None,
             "hora_fin_raw": s.hora_fin.isoformat() if s.hora_fin else None,
             "duracion": f"{int((s.hora_fin - s.hora_inicio).total_seconds() / 60)} min" if s.hora_inicio and s.hora_fin else "N/A",
@@ -1540,7 +1542,7 @@ def _crear_servicio_y_notificar(usuario, session, supervisor, db):
             direccion_origen=datos_finales.get("destino", "Desconocido"),
             direccion_destino=datos_finales.get("origen", "Desconocido"),
             hora_programada=hora_retorno,
-            observaciones="[RETORNO] " + datos_finales.get("observaciones", ""),
+            observaciones=f"[RETORNO DE SOL-{nuevo_servicio.id}] " + datos_finales.get("observaciones", ""),
             estado="PENDIENTE",
             es_retorno=True,
             retorno_de_id=nuevo_servicio.id
@@ -1703,6 +1705,32 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
         models.Servicio.estado == "ASIGNADO"
     ).all()
 
+    # Comandos especiales
+    text_up = text.upper().strip()
+    if text_up.startswith("SIN PASAJERO"):
+        parts = text_up.split()
+        if len(parts) >= 3:
+            try:
+                sid_str = parts[2].replace("#", "").replace("SOL-", "")
+                sid = int(sid_str)
+                # Verificar que el servicio existe y está ASIGNADO a este conductor
+                servicio = db.query(models.Servicio).filter(
+                    models.Servicio.id == sid,
+                    models.Servicio.conductor_id == conductor.id,
+                    models.Servicio.estado == "ASIGNADO"
+                ).first()
+                
+                if servicio:
+                    session.paso_actual = "ESPERANDO_OBSERVACION_CONDUCTOR"
+                    session.datos_temporales = {"servicio_id": servicio.id}
+                    flag_modified(session, "datos_temporales")
+                    db.commit()
+                    return {"action": "send_message", "phone": conductor.whatsapp, "message": f"Has reportado que el pasajero no ha llegado para el servicio *#{servicio.id}*. Por favor, escribe una breve *observación* de lo que sucede para iniciar el servicio:"}
+                else:
+                    return {"action": "send_message", "phone": conductor.whatsapp, "message": f"No se encontró el servicio #{sid} asignado a ti en estado pendiente."}
+            except (ValueError, IndexError):
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": "Formato incorrecto. Usa: SIN PASAJERO [número de servicio]"}
+
     if paso == "INICIO":
         # Flujo de INICIAR SERVICIO por código
         if len(text_clean) == 6:
@@ -1711,7 +1739,7 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
             
             if servicio_matcheado:
                 servicio_matcheado.estado = "EN_CURSO"
-                servicio_matcheado.hora_inicio = datetime.now()
+                servicio_matcheado.hora_inicio = datetime.now(COLOMBIA_TZ)
                 session.paso_actual = "FINALIZAR_SERVICIO"
                 session.datos_temporales = {"servicio_id": servicio_matcheado.id}
                 flag_modified(session, "datos_temporales")
@@ -1749,6 +1777,7 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
             for s in servicios_asignados:
                 msg += f"• *#{s.id}*: {s.direccion_origen} → {s.direccion_destino}\n"
             msg += "\nPor favor ingresa el *código de verificación de 6 dígitos* del servicio que vas a iniciar."
+            msg += "\n\nSi llegaste y el *pasajero no aparece*, puedes iniciar el servicio reportando la novedad escribiendo:\n*SIN PASAJERO #{servicios_asignados[0].id}*" if count == 1 else "\n\nSi llegaste y el *pasajero no aparece*, puedes iniciar el servicio reportando la novedad escribiendo:\n*SIN PASAJERO [número]*"
             return {"action": "send_message", "phone": conductor.whatsapp, "message": msg}
         
         return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, no tienes servicios asignados pendientes por iniciar en este momento."}
@@ -1777,7 +1806,7 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
 
             if cedula_valida:
                 servicio.estado = "COMPLETADO"
-                servicio.hora_fin = datetime.now()
+                servicio.hora_fin = datetime.now(COLOMBIA_TZ)
                 session.paso_actual = "INICIO"
                 session.datos_temporales = {}
                 flag_modified(session, "datos_temporales")
@@ -1791,8 +1820,44 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
                 return res
             else:
                 return {"action": "send_message", "phone": conductor.whatsapp, "message": "❌ Los dígitos no coinciden con la cédula registrada. Por favor verifícalos y envíalos de nuevo."}
+        
+        # Opcional: Permitir validar el código de 6 dígitos si el pasajero llegó después de iniciar sin él
+        elif len(text_clean) == 6:
+            if text_clean == servicio.codigo_verificacion:
+                servicio.observaciones = (servicio.observaciones or "") + f"\n[PASAJERO LLEGÓ Y VALIDÓ CÓDIGO A LAS {datetime.now(COLOMBIA_TZ).strftime('%H:%M')}]"
+                db.commit()
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": "✅ ¡Excelente! El código ha sido validado. El pasajero ya está contigo. Continúa el viaje y finaliza al llegar al destino con los últimos 4 dígitos de su cédula."}
+            else:
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": "❌ El código de 6 dígitos no es correcto. Por favor verifícalo con el pasajero."}
         else:
             return {"action": "send_message", "phone": conductor.whatsapp, "message": "Por favor ingresa los *4 últimos dígitos de la cédula del pasajero* para completar el servicio."}
+
+    elif paso == "ESPERANDO_OBSERVACION_CONDUCTOR":
+        servicio_id = session.datos_temporales.get("servicio_id")
+        servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+        
+        if not servicio:
+            session.paso_actual = "INICIO"
+            session.datos_temporales = {}
+            db.commit()
+            return {"action": "send_message", "phone": conductor.whatsapp, "message": "No se encontró el servicio. Por favor inicia de nuevo."}
+        
+        # Actualizar servicio
+        servicio.estado = "EN_CURSO"
+        servicio.hora_inicio = datetime.now(COLOMBIA_TZ)
+        obs_prefix = f"[INICIO SIN PASAJERO A LAS {datetime.now(COLOMBIA_TZ).strftime('%H:%M')}]: "
+        servicio.observaciones = obs_prefix + text + ("\n" + servicio.observaciones if servicio.observaciones else "")
+        
+        # Mover a estado de finalización
+        session.paso_actual = "FINALIZAR_SERVICIO"
+        session.datos_temporales = {"servicio_id": servicio.id}
+        flag_modified(session, "datos_temporales")
+        db.commit()
+        
+        # Notificar al pasajero (opcional, tal vez no si no está)
+        # usuario = db.query(models.Usuario).filter(models.Usuario.id == servicio.usuario_id).first()
+        
+        return {"action": "send_message", "phone": conductor.whatsapp, "message": f"✅ Servicio #{servicio.id} iniciado con reporte de novedad. El tiempo ha empezado a correr.\n\nCuando el pasajero llegue, puedes validar su código de 6 dígitos para confirmar pickup, o simplemente finaliza al llegar al destino con los 4 dígitos de su cédula."}
 
     return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, ¿en qué puedo ayudarte?"}
 
@@ -1855,7 +1920,7 @@ async def get_autorizador_stats(request: Request, desde: str = None, hasta: str 
     meses_nombres = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
     
     for i in range(2, -1, -1):
-        target_date = datetime.now() - timedelta(days=i*30)
+        target_date = datetime.now(COLOMBIA_TZ) - timedelta(days=i*30)
         mes_idx = target_date.month - 1
         conteo = q.filter(
             extract('year', models.Servicio.created_at) == target_date.year,
@@ -1989,7 +2054,7 @@ async def get_autorizador_empleados(request: Request, search: str = "", page: in
     # Calcular estadísticas por empleado
     from sqlalchemy import extract
     from datetime import datetime
-    ahora = datetime.now()
+    ahora = datetime.now(COLOMBIA_TZ)
     
     result = []
     for e in paginated_empleados:
@@ -2096,7 +2161,8 @@ async def get_autorizador_asignaciones(request: Request, db: Session = Depends(g
     for s in solicitudes:
         empresa_nombre = s.empresa.nombre if s.empresa else "Empresa N/A"
         empleado_nombre = s.usuario.nombre if s.usuario else "Desconocido"
-        fecha_creacion = s.created_at.strftime("%b %d, %I:%M %p") if s.created_at else "No disp."
+        fecha_col = s.created_at.astimezone(COLOMBIA_TZ) if s.created_at else None
+        fecha_creacion = fecha_col.strftime("%b %d, %I:%M %p") if fecha_col else "No disp."
         conductor_nombre = s.conductor.nombre if s.conductor else "Sin asignar"
         vehiculo_placa = s.vehiculo_asignado or "Sin asignar"
         

@@ -20,7 +20,10 @@ import {
   Power,
   CheckCircle2,
   XCircle,
-  Ban
+  Ban,
+  MoreVertical,
+  UserCircle,
+  X
 } from 'lucide-react';
 import { adminAPI } from '@/services/api';
 import { toast } from 'sonner';
@@ -31,9 +34,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Supervisor {
   id: number;
@@ -310,186 +321,190 @@ export default function GestionEmpresas() {
           empresas.map((empresa) => (
             <Card key={empresa.id} className="overflow-hidden border-2 hover:border-blue-200 transition-all duration-300">
               <div 
-                className="p-6 cursor-pointer flex items-center justify-between bg-white"
+                className="p-4 md:p-6 cursor-pointer flex items-center justify-between bg-white hover:bg-slate-50 transition-colors"
                 onClick={() => toggleExpand(empresa.id)}
               >
-                <div className="flex items-center gap-6">
-                  <div className="bg-blue-50 p-4 rounded-xl">
-                    <Building2 className="text-blue-600" size={32} />
+                <div className="flex items-center gap-3 md:gap-6 min-w-0">
+                  <div className="bg-blue-50 p-3 md:p-4 rounded-2xl shrink-0">
+                    <Building2 className="text-blue-600" size={24} className="md:w-8 md:h-8" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{empresa.nombre}</h2>
-                    <div className="flex gap-4 mt-1 text-sm text-gray-500">
-                      <span className="flex items-center gap-1"><ShieldCheck size={14}/> NIT: {empresa.nit}</span>
-                      <span className="flex items-center gap-1"><Mail size={14}/> {empresa.email}</span>
-                      <span className="flex items-center gap-1"><Phone size={14}/> {empresa.telefono}</span>
+                  <div className="min-w-0">
+                    <h2 className="text-lg md:text-xl font-bold text-slate-800 truncate tracking-tight">{empresa.nombre}</h2>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      <span className="flex items-center gap-1"><ShieldCheck size={12}/> {empresa.nit}</span>
+                      <span className="hidden sm:flex items-center gap-1"><Mail size={12}/> {empresa.email}</span>
+                      <span className="flex items-center gap-1"><Phone size={12}/> {empresa.telefono}</span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right mr-4 hidden md:block">
-                    <p className="text-sm font-medium text-gray-900">{empresa.supervisores.length} Supervisores</p>
-                    <p className="text-xs text-gray-500">{empresa.usuarios_count} Empleados</p>
+                <div className="flex items-center gap-4 shrink-0">
+                  <div className="text-right mr-2 hidden sm:block">
+                    <p className="text-xs font-black text-slate-900">{empresa.supervisores.length} Supervisores</p>
+                    <p className="text-[10px] font-bold text-slate-400">{empresa.usuarios_count} Empleados</p>
                   </div>
-                  {expandedId === empresa.id ? <ChevronDown size={24} /> : <ChevronRight size={24} />}
+                  <div className={`p-2 rounded-full transition-transform duration-300 ${expandedId === empresa.id ? 'bg-blue-50 text-blue-600 rotate-180' : 'bg-slate-50 text-slate-400'}`}>
+                    <ChevronDown size={20} />
+                  </div>
                 </div>
               </div>
 
               {expandedId === empresa.id && (
-                <CardContent className="bg-gray-50 border-t p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-top-4 duration-300">
-                  {/* Supervisores */}
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Users className="text-orange-500" size={20} />
-                        Supervisores (Autorizadores)
-                      </h3>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="text-blue-600 hover:text-blue-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openAddMember('SUPERVISOR', empresa.id);
-                        }}
-                      >
-                        <Plus size={16} className="mr-1" /> Añadir
-                      </Button>
+                <CardContent className="bg-slate-50/50 border-t p-0 animate-in slide-in-from-top-4 duration-300">
+                  <Tabs defaultValue="personal" className="w-full">
+                    <div className="px-4 md:px-8 pt-4 bg-white border-b border-slate-100">
+                      <TabsList className="bg-slate-100/50 p-1 rounded-xl h-11 w-full sm:w-fit">
+                        <TabsTrigger value="personal" className="rounded-lg font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+                          Personal & Auditor
+                        </TabsTrigger>
+                        <TabsTrigger value="supervisores" className="rounded-lg font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+                          Supervisores
+                        </TabsTrigger>
+                      </TabsList>
                     </div>
-                    <div className="grid gap-3">
-                      {empresa.supervisores.map((s) => (
-                        <div key={s.id} className="bg-white p-4 rounded-lg shadow-sm flex justify-between items-center group">
-                          <div>
-                            <p className="font-semibold text-gray-900">{s.nombre}</p>
-                            <div className="flex gap-2 text-sm text-gray-500">
-                              <span>WhatsApp: {s.whatsapp}</span>
-                              {s.area && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">{s.area}</span>}
+
+                    <TabsContent value="personal" className="p-4 md:p-8 space-y-6 m-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Auditor General */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="bg-purple-50 p-3 rounded-2xl text-purple-600">
+                              <ShieldCheck size={24} />
+                            </div>
+                            <div className="flex gap-2">
+                               <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-9 w-9 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (empresa.master_supervisor) {
+                                    openEditMember('MASTER' as any, empresa.id, { ...empresa.master_supervisor, whatsapp: '' });
+                                  } else {
+                                    openAddMember('MASTER', empresa.id);
+                                  }
+                                }}
+                              >
+                                {empresa.master_supervisor ? <Pencil size={16} /> : <Plus size={16} />}
+                              </Button>
+                              {empresa.master_supervisor && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteMember('MASTER', empresa.master_supervisor!.id);
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {s.activo ? (
-                              <Badge className="bg-green-100 text-green-700 border-green-200">Activo</Badge>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-lg leading-tight mb-1">Auditor General</h3>
+                            <p className="text-slate-400 text-xs font-bold uppercase mb-4">Dashboard Corporativo</p>
+                            
+                            {empresa.master_supervisor ? (
+                              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <p className="font-bold text-blue-800 text-sm">{empresa.master_supervisor.nombre}</p>
+                                <p className="text-[11px] font-bold text-slate-400">{empresa.master_supervisor.email}</p>
+                              </div>
                             ) : (
-                              <Badge className="bg-gray-100 text-gray-500 border-gray-200">Inactivo</Badge>
+                              <div className="py-4 text-center border-2 border-dashed border-slate-100 rounded-xl">
+                                <span className="text-xs text-slate-400 font-bold italic">No hay auditor asignado</span>
+                              </div>
                             )}
-                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200">Supervisor</Badge>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className={`h-8 w-8 transition-opacity ${s.activo ? 'text-green-600' : 'text-gray-400'}`}
-                              onClick={(e) => { e.stopPropagation(); handleToggleStatus('SUPERVISOR', s); }}
-                              title={s.activo ? "Desactivar" : "Activar"}
-                            >
-                              <Power size={14} />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-blue-600 opacity-0 group-hover:opacity-100 transition"
-                              onClick={(e) => { e.stopPropagation(); openEditMember('SUPERVISOR', empresa.id, s); }}
-                            >
-                              <Pencil size={14} />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-red-600 opacity-0 group-hover:opacity-100 transition"
-                              onClick={(e) => { e.stopPropagation(); handleDeleteMember('SUPERVISOR', s.id); }}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Usuarios Autorizados y Auditor */}
-                  <div className="space-y-6">
-                    {/* Auditor General */}
-                    <div className="bg-white p-6 rounded-xl border border-gray-100 flex flex-col sm:flex-row justify-between items-center shadow-sm">
-                      <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                        <div className="bg-purple-50 p-3 rounded-full text-purple-600">
-                          <ShieldCheck size={24} />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-lg text-gray-900">Auditor General (Dashboard)</h3>
-                          <p className="text-gray-500 text-sm">Acceso a estadísticas de la empresa.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {empresa.master_supervisor ? (
-                          <div className="text-right mr-2">
-                            <p className="font-bold text-blue-900">{empresa.master_supervisor.nombre}</p>
-                            <p className="text-xs text-gray-400">{empresa.master_supervisor.email}</p>
+                        {/* Usuarios (Empleados) */}
+                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="bg-blue-50 p-3 rounded-2xl text-blue-600">
+                              <Users size={24} />
+                            </div>
+                            <div className="text-right">
+                              <span className="block text-2xl font-black text-slate-900 leading-none">{empresa.usuarios_count}</span>
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Empleados</span>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-sm text-gray-400 italic mr-2">No asignado</span>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline"
-                            size="sm"
-                            className="border-purple-200 text-purple-700 hover:bg-purple-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (empresa.master_supervisor) {
-                                openEditMember('MASTER' as any, empresa.id, {
-                                  ...empresa.master_supervisor,
-                                  whatsapp: ''
-                                });
-                              } else {
-                                openAddMember('MASTER', empresa.id);
-                              }
-                            }}
-                          >
-                            {empresa.master_supervisor ? <Pencil size={14} className="mr-2" /> : <Plus size={14} className="mr-2" />}
-                            {empresa.master_supervisor ? 'Editar' : 'Asignar'}
-                          </Button>
-                          {empresa.master_supervisor && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-lg leading-tight mb-1">Personal Autorizado</h3>
+                            <p className="text-slate-400 text-xs font-bold uppercase mb-4">Usuarios registrados</p>
+                            
+                            <Button 
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-11 font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-600/20"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteMember('MASTER', empresa.master_supervisor!.id);
+                                openBulkUsers(empresa.id);
                               }}
                             >
-                              <Trash2 size={16} />
+                              <ExternalLink size={16} className="mr-2" /> Gestionar Nómina
                             </Button>
-                          )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </TabsContent>
 
-                    <div className="bg-white p-6 rounded-xl border border-gray-100 flex flex-col sm:flex-row justify-between items-center shadow-sm h-full">
-                      <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                        <div className="bg-blue-50 p-3 rounded-full text-blue-600">
-                          <Users size={24} />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-lg text-gray-900">Usuarios (Empleados)</h3>
-                          <p className="text-gray-500 text-sm">Personal autorizado para viajar.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-5">
-                        <div className="text-center px-4 border-r border-gray-200">
-                           <span className="block text-2xl font-black text-[#1B3A5C]">{empresa.usuarios_count}</span>
-                           <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total</span>
-                        </div>
+                    <TabsContent value="supervisores" className="p-4 md:p-8 m-0 space-y-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-bold text-slate-700 uppercase text-xs tracking-widest">Lista de Autorizadores</h3>
                         <Button 
-                          className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                          className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-9 px-4 font-bold text-xs"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openBulkUsers(empresa.id);
+                            openAddMember('SUPERVISOR', empresa.id);
                           }}
                         >
-                          <ExternalLink size={16} className="mr-2" /> Gestionar
+                          <Plus size={14} className="mr-1.5" /> Añadir
                         </Button>
                       </div>
-                    </div>
-                  </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {empresa.supervisores.length > 0 ? (
+                          empresa.supervisores.map((s) => (
+                            <div key={s.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center group hover:border-blue-200 transition-colors">
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 text-sm truncate">{s.nombre}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-bold text-slate-400">WA: {s.whatsapp}</span>
+                                  {s.area && (
+                                    <span className="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">{s.area}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 pl-2">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100">
+                                      <MoreVertical size={16} className="text-slate-400" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="rounded-xl border-slate-100">
+                                    <DropdownMenuItem onClick={() => handleToggleStatus('SUPERVISOR', s)} className="font-bold text-xs uppercase tracking-tighter">
+                                      {s.activo ? <XCircle size={14} className="mr-2 text-rose-500" /> : <CheckCircle2 size={14} className="mr-2 text-emerald-500" />}
+                                      {s.activo ? 'Desactivar' : 'Activar'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openEditMember('SUPERVISOR', empresa.id, s)} className="font-bold text-xs uppercase tracking-tighter">
+                                      <Pencil size={14} className="mr-2 text-blue-500" /> Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDeleteMember('SUPERVISOR', s.id)} className="font-bold text-xs uppercase tracking-tighter text-rose-600">
+                                      <Trash2 size={14} className="mr-2" /> Eliminar
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="col-span-full py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+                             <p className="text-slate-400 text-xs font-bold italic">No hay supervisores registrados</p>
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
               )}
             </Card>
@@ -511,7 +526,10 @@ export default function GestionEmpresas() {
       {/* MODAL GESTIÓN MASIVA USUARIOS */}
       <Dialog open={isBulkUsersModalOpen} onOpenChange={setIsBulkUsersModalOpen}>
         <DialogContent className="sm:max-w-[800px] h-[85vh] flex flex-col p-0 overflow-hidden bg-gray-50 border-0 shadow-2xl">
-          <DialogHeader className="p-6 border-b bg-white shadow-sm z-10">
+          <DialogHeader className="p-6 border-b bg-white shadow-sm z-10 relative">
+            <DialogClose className="absolute right-4 top-4 rounded-xl p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+              <X size={20} />
+            </DialogClose>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <DialogTitle className="text-2xl font-bold text-[#1B3A5C]">
@@ -795,6 +813,7 @@ export default function GestionEmpresas() {
                       <Input 
                         id="m_email" 
                         type="email"
+                        autoComplete="none"
                         placeholder="email@empresa.com"
                         className="h-10 border-gray-200" 
                         value={newMember.email}
@@ -807,6 +826,7 @@ export default function GestionEmpresas() {
                       <Input 
                         id="m_pass" 
                         type="password"
+                        autoComplete="new-password"
                         placeholder={editingMemberId ? "•••••• (Vacio para mantener)" : "Definir contraseña"}
                         className="h-10 border-gray-200" 
                         value={newMember.password}

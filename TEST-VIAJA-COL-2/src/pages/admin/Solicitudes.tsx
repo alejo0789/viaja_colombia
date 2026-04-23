@@ -178,17 +178,20 @@ export default function Solicitudes() {
               <span className="font-black text-slate-400 text-xs">#{solicitud.id}</span>
               <StatusBadge estado={solicitud.estado} />
             </div>
-            <h3 className="font-bold text-slate-900 truncate max-w-[200px]">{solicitud.empresa || 'Empresa N/A'}</h3>
+            <h3 className="font-semibold text-slate-700 truncate max-w-[200px]">{solicitud.empresa || 'Empresa N/A'}</h3>
           </div>
-          {(solicitud.estado === 'AUTORIZADO' || solicitud.estado === 'PENDIENTE') && (
-            <Button
-              size="sm"
-              className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl px-4 h-9 font-bold shadow-lg shadow-orange-500/20"
-              onClick={() => openAssignDialog(solicitud)}
-            >
-              Asignar
-            </Button>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{solicitud.fecha}</span>
+            {(solicitud.estado === 'AUTORIZADO' || solicitud.estado === 'PENDIENTE') && (
+              <Button
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl px-4 h-9 font-bold shadow-lg shadow-orange-500/20"
+                onClick={() => openAssignDialog(solicitud)}
+              >
+                Asignar
+              </Button>
+            )}
+          </div>
         </div>
         
         <div className="p-4 space-y-4">
@@ -209,7 +212,10 @@ export default function Solicitudes() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1 tracking-wider">Programado</p>
-                <p className="text-sm font-bold text-slate-700 truncate">{solicitud.hora_programada || 'N/A'}</p>
+                <div className="flex flex-col">
+                  <p className="text-sm font-medium text-slate-700 truncate">{solicitud.hora_programada || 'N/A'}</p>
+                  <p className="text-[10px] font-medium text-slate-400">{solicitud.fecha}</p>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -244,9 +250,9 @@ export default function Solicitudes() {
               <span className="text-[10px] font-bold text-slate-500 truncate max-w-[150px]">Autoriza: {solicitud.autorizador_nombre}</span>
             </div>
             {solicitud.autorizador_area && solicitud.autorizador_area !== 'N/A' && (
-              <Badge variant="outline" className="text-[9px] bg-white border-slate-200 text-slate-500 font-bold uppercase py-0 px-1.5 h-4">
-                {solicitud.autorizador_area}
-              </Badge>
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">
+                • {solicitud.autorizador_area}
+              </span>
             )}
           </div>
         )}
@@ -348,22 +354,26 @@ export default function Solicitudes() {
                     <TableHead className="w-[100px] font-bold text-slate-900">ID</TableHead>
                     <TableHead className="font-bold text-slate-900">Pasajero / Empresa</TableHead>
                     <TableHead className="font-bold text-slate-900">Origen / Destino</TableHead>
-                    <TableHead className="font-bold text-slate-900">Horario</TableHead>
+                    <TableHead className="font-bold text-slate-900">F. Solicitud</TableHead>
+                    <TableHead className="font-bold text-slate-900">Hora Prog.</TableHead>
                     <TableHead className="font-bold text-slate-900">Autorización</TableHead>
                     <TableHead className="font-bold text-slate-900">Estado</TableHead>
+                    <TableHead className="font-bold text-slate-900">Observaciones</TableHead>
                     <TableHead className="text-right font-bold text-slate-900 pr-6">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
                   {isLoadingSolicitudes ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-20">
+                      <TableCell colSpan={9} className="text-center py-20">
                         <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-r-transparent" />
                       </TableCell>
                     </TableRow>
                   ) : filteredSolicitudes.map((solicitud) => (
                     <TableRow key={solicitud.id} className="hover:bg-slate-50/50 transition-colors">
-                      <TableCell className="font-black text-slate-400 text-xs">#{solicitud.id}</TableCell>
+                      <TableCell className="font-black text-slate-400 text-xs">
+                        #{solicitud.id}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
                           <p className="font-bold text-slate-900">{solicitud.empleado || solicitud.empleado_nombre}</p>
@@ -383,25 +393,28 @@ export default function Solicitudes() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-xs font-bold text-slate-700">{solicitud.hora_programada || 'Por confirmar'}</p>
-                          <p className="text-[10px] font-bold text-slate-400">{solicitud.fecha}</p>
-                        </div>
+                        <p className="text-xs font-bold text-slate-700">{solicitud.fecha}</p>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-xs font-medium text-slate-700">{solicitud.hora_programada || 'Por confirmar'}</p>
                       </TableCell>
                       <TableCell>
                         {solicitud.autorizador_nombre ? (
                           <div className="flex flex-col gap-1">
                             <p className="text-xs font-bold text-slate-700">{solicitud.autorizador_nombre}</p>
                             {solicitud.autorizador_area && (
-                              <Badge className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase py-0 px-1 border-none rounded-md w-fit h-4">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
                                 {solicitud.autorizador_area}
-                              </Badge>
+                              </span>
                             )}
                           </div>
                         ) : <span className="text-slate-300">-</span>}
                       </TableCell>
                       <TableCell>
                         <StatusBadge estado={solicitud.estado} />
+                      </TableCell>
+                      <TableCell>
+                        <TruncatedCell text={solicitud.observaciones} maxWidth="120px" />
                       </TableCell>
                       <TableCell className="text-right pr-6">
                         {(solicitud.estado === 'AUTORIZADO' || solicitud.estado === 'PENDIENTE') && (
@@ -602,13 +615,6 @@ export default function Solicitudes() {
             <Button className="bg-[#0F172A] hover:bg-slate-800 text-white w-full h-12 rounded-xl font-bold" onClick={() => setIsSuccessDialogOpen(false)}>
               Entendido
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-n>
           </DialogFooter>
         </DialogContent>
       </Dialog>
