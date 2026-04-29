@@ -1000,6 +1000,17 @@ async def get_vehiculos(db: Session = Depends(get_db)):
             "capacidad": v.capacidad,
             "tipo_servicio": v.tipo_servicio,
             "estado": v.estado,
+            "tipo_vehiculo": v.tipo_vehiculo,
+            "ciudad": v.ciudad,
+            "propietario": v.propietario,
+            "cedula_propietario": v.cedula_propietario,
+            "fecha_matricula": v.fecha_matricula,
+            "soat_vencimiento": v.soat_vencimiento,
+            "tecnomecanica_vencimiento": v.tecnomecanica_vencimiento,
+            "polizas_vencimiento": v.polizas_vencimiento,
+            "todo_riesgo_vencimiento": v.todo_riesgo_vencimiento,
+            "tarjeta_operacion_vencimiento": v.tarjeta_operacion_vencimiento,
+            "empresa_afiliada": v.empresa_afiliada,
         }
         for v in vehiculos
     ]
@@ -1023,6 +1034,17 @@ async def create_vehiculo(data: dict, db: Session = Depends(get_db)):
         capacidad=data.get("capacidad"),
         tipo_servicio=data.get("tipo_servicio", "Estándar"),
         estado=data.get("estado", "activo"),
+        tipo_vehiculo=data.get("tipo_vehiculo"),
+        ciudad=data.get("ciudad"),
+        propietario=data.get("propietario"),
+        cedula_propietario=data.get("cedula_propietario"),
+        fecha_matricula=data.get("fecha_matricula"),
+        soat_vencimiento=data.get("soat_vencimiento"),
+        tecnomecanica_vencimiento=data.get("tecnomecanica_vencimiento"),
+        polizas_vencimiento=data.get("polizas_vencimiento"),
+        todo_riesgo_vencimiento=data.get("todo_riesgo_vencimiento"),
+        tarjeta_operacion_vencimiento=data.get("tarjeta_operacion_vencimiento"),
+        empresa_afiliada=data.get("empresa_afiliada"),
     )
     db.add(vehiculo)
     db.commit()

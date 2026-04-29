@@ -21,6 +21,20 @@ class Vehiculo(Base):
     capacidad = Column(Integer, nullable=True)
     tipo_servicio = Column(String, nullable=True)
     estado = Column(String, default="activo")  # activo, mantenimiento, inactivo
+    
+    # Nuevos campos
+    tipo_vehiculo = Column(String, nullable=True)
+    ciudad = Column(String, nullable=True)
+    propietario = Column(String, nullable=True)
+    cedula_propietario = Column(String, nullable=True)
+    fecha_matricula = Column(String, nullable=True)
+    soat_vencimiento = Column(String, nullable=True)
+    tecnomecanica_vencimiento = Column(String, nullable=True)
+    polizas_vencimiento = Column(String, nullable=True)
+    todo_riesgo_vencimiento = Column(String, nullable=True)
+    tarjeta_operacion_vencimiento = Column(String, nullable=True)
+    empresa_afiliada = Column(String, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     conductores = relationship("Conductor", secondary=conductor_vehiculo, back_populates="vehiculos")

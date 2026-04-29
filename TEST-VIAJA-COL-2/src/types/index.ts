@@ -39,6 +39,18 @@ export interface Vehiculo {
   capacidad: number
   estado: VehiculoEstado
   tipo: string
+  // Nuevos campos
+  tipo_vehiculo?: string
+  ciudad?: string
+  propietario?: string
+  cedula_propietario?: string
+  fecha_matricula?: string
+  soat_vencimiento?: string
+  tecnomecanica_vencimiento?: string
+  polizas_vencimiento?: string
+  todo_riesgo_vencimiento?: string
+  tarjeta_operacion_vencimiento?: string
+  empresa_afiliada?: string
 }
 
 export interface Conductor {

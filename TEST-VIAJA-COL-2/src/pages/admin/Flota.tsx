@@ -34,6 +34,17 @@ export default function Flota() {
     capacidad: 5,
     estado: 'activo',
     tipo_servicio: 'Estándar',
+    tipo_vehiculo: '',
+    ciudad: '',
+    propietario: '',
+    cedula_propietario: '',
+    fecha_matricula: '',
+    soat_vencimiento: '',
+    tecnomecanica_vencimiento: '',
+    polizas_vencimiento: '',
+    todo_riesgo_vencimiento: '',
+    tarjeta_operacion_vencimiento: '',
+    empresa_afiliada: '',
   });
 
   const fetchVehiculos = async () => {
@@ -75,6 +86,17 @@ export default function Flota() {
         capacidad: 5,
         estado: 'activo',
         tipo_servicio: 'Estándar',
+        tipo_vehiculo: '',
+        ciudad: '',
+        propietario: '',
+        cedula_propietario: '',
+        fecha_matricula: '',
+        soat_vencimiento: '',
+        tecnomecanica_vencimiento: '',
+        polizas_vencimiento: '',
+        todo_riesgo_vencimiento: '',
+        tarjeta_operacion_vencimiento: '',
+        empresa_afiliada: '',
       });
     } catch (error: any) {
       alert(error?.message || 'Error al registrar el vehículo');
@@ -129,85 +151,185 @@ export default function Flota() {
                 Completa el formulario para agregar un vehículo a la flota
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Placa *</label>
-                <Input
-                  name="placa"
-                  value={formData.placa}
-                  onChange={handleInputChange}
-                  placeholder="Ej: MED128"
-                  className="uppercase"
-                />
-              </div>
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Marca</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Placa *</label>
+                  <Input
+                    name="placa"
+                    value={formData.placa}
+                    onChange={handleInputChange}
+                    placeholder="Ej: QLR094"
+                    className="uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Tipo Vehículo</label>
+                  <Input
+                    name="tipo_vehiculo"
+                    value={formData.tipo_vehiculo}
+                    onChange={handleInputChange}
+                    placeholder="Ej: CAMIONETA PLATON"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Marca</label>
                   <Input
                     name="marca"
                     value={formData.marca}
                     onChange={handleInputChange}
-                    placeholder="Ej: Toyota"
+                    placeholder="Ej: TOYOTA"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Modelo</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Modelo</label>
                   <Input
                     name="modelo"
                     value={formData.modelo}
                     onChange={handleInputChange}
-                    placeholder="Ej: Camry"
+                    placeholder="Ej: 2026"
                   />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Año</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Ciudad</label>
                   <Input
-                    name="año"
-                    type="number"
-                    value={formData.año}
+                    name="ciudad"
+                    value={formData.ciudad}
                     onChange={handleInputChange}
+                    placeholder="Ej: BOGOTA"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Capacidad (pax)</label>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Empresa Afiliada</label>
                   <Input
-                    name="capacidad"
-                    type="number"
-                    value={formData.capacidad}
+                    name="empresa_afiliada"
+                    value={formData.empresa_afiliada}
                     onChange={handleInputChange}
+                    placeholder="Ej: TRANSPORTE SAS"
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Tipo de Servicio</label>
-                <Select
-                  value={formData.tipo_servicio}
-                  onValueChange={(v) => handleSelectChange('tipo_servicio', v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Económico">Económico</SelectItem>
-                    <SelectItem value="Estándar">Estándar</SelectItem>
-                    <SelectItem value="Ejecutivo">Ejecutivo</SelectItem>
-                    <SelectItem value="VIP">VIP</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Propietario</label>
+                  <Input
+                    name="propietario"
+                    value={formData.propietario}
+                    onChange={handleInputChange}
+                    placeholder="Nombre Propietario"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Cédula Propietario</label>
+                  <Input
+                    name="cedula_propietario"
+                    value={formData.cedula_propietario}
+                    onChange={handleInputChange}
+                    placeholder="CC / NIT"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Estado</label>
-                <Select
-                  value={formData.estado}
-                  onValueChange={(v) => handleSelectChange('estado', v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="activo">Activo</SelectItem>
-                    <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
-                    <SelectItem value="inactivo">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="grid grid-cols-2 gap-3 border-t pt-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Fecha Matrícula</label>
+                  <Input
+                    name="fecha_matricula"
+                    value={formData.fecha_matricula}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 3/01/2026"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Vence SOAT</label>
+                  <Input
+                    name="soat_vencimiento"
+                    value={formData.soat_vencimiento}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 30-dic-2026"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Vence Tecnomecánica</label>
+                  <Input
+                    name="tecnomecanica_vencimiento"
+                    value={formData.tecnomecanica_vencimiento}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 23-nov-2028"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Vence Tarjeta Op.</label>
+                  <Input
+                    name="tarjeta_operacion_vencimiento"
+                    value={formData.tarjeta_operacion_vencimiento}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 08-ene-2028"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Vence Pólizas</label>
+                  <Input
+                    name="polizas_vencimiento"
+                    value={formData.polizas_vencimiento}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 26-feb-2027"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Vence Todo Riesgo</label>
+                  <Input
+                    name="todo_riesgo_vencimiento"
+                    value={formData.todo_riesgo_vencimiento}
+                    onChange={handleInputChange}
+                    placeholder="Ej: 20-abr-2027"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 border-t pt-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Estado</label>
+                  <Select
+                    value={formData.estado}
+                    onValueChange={(v) => handleSelectChange('estado', v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="activo">Activo</SelectItem>
+                      <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
+                      <SelectItem value="inactivo">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 uppercase">Tipo Servicio</label>
+                  <Select
+                    value={formData.tipo_servicio}
+                    onValueChange={(v) => handleSelectChange('tipo_servicio', v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Económico">Económico</SelectItem>
+                      <SelectItem value="Estándar">Estándar</SelectItem>
+                      <SelectItem value="Ejecutivo">Ejecutivo</SelectItem>
+                      <SelectItem value="VIP">VIP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -251,19 +373,31 @@ export default function Flota() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <p className="text-gray-500">Año</p>
-                    <p className="font-semibold">{vehiculo.anio || '—'}</p>
+                    <p className="text-gray-400 uppercase font-medium">Tipo</p>
+                    <p className="font-semibold text-gray-700">{vehiculo.tipo_vehiculo || vehiculo.tipo_servicio || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Capacidad</p>
-                    <p className="font-semibold">{vehiculo.capacidad ? `${vehiculo.capacidad} pax` : '—'}</p>
+                    <p className="text-gray-400 uppercase font-medium">Ciudad</p>
+                    <p className="font-semibold text-gray-700">{vehiculo.ciudad || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Tipo</p>
-                    <p className="font-semibold">{vehiculo.tipo_servicio || '—'}</p>
+                    <p className="text-gray-400 uppercase font-medium">SOAT</p>
+                    <p className={`font-semibold ${vehiculo.soat_vencimiento && vehiculo.soat_vencimiento !== 'N/A' ? 'text-green-600' : 'text-gray-700'}`}>
+                      {vehiculo.soat_vencimiento || '—'}
+                    </p>
                   </div>
+                  <div>
+                    <p className="text-gray-400 uppercase font-medium">Tarjeta Op.</p>
+                    <p className={`font-semibold ${vehiculo.tarjeta_operacion_vencimiento && vehiculo.tarjeta_operacion_vencimiento !== 'N/A' ? 'text-green-600' : 'text-gray-700'}`}>
+                      {vehiculo.tarjeta_operacion_vencimiento || '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                   <p className="text-[10px] text-gray-400 uppercase font-medium">Empresa Afiliada</p>
+                   <p className="text-xs font-semibold text-gray-600 truncate">{vehiculo.empresa_afiliada || '—'}</p>
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button
