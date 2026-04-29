@@ -919,43 +919,51 @@ async def asignar_servicio(
         background_tasks.add_task(whatsapp.send_whatsapp_text, usuario.whatsapp, msg_pasajero)
 
 
-    # ----- Mensaje al CONDUCTOR (Usando Plantilla asignacion_servicio) -----
+    # ----- Mensaje al CONDUCTOR (Plantilla asignacion_servicio reutilizada) -----
     raw_tel = conductor.whatsapp or conductor.telefono
     conductor_wa = normalizar_telefono_co(raw_tel) if raw_tel else None
     if conductor_wa:
-        pasajero_nombre = usuario.nombre if usuario else "N/A"
-        pasajero_tel = usuario.whatsapp if usuario else "N/A"
-        
-        # Preparar componentes para la plantilla asignacion_servicio
-        # {{1}}: Conductor
-        # {{2}}: Automóvil (Marca Modelo Placa)
-        # {{3}}: Usuario (Pasajero)
-        # {{4}}: Teléfono Pasajero
-        # {{5}}: Recoger en (Origen)
-        # {{6}}: Hacia (Destino)
-        # {{7}}: Programado para (Hora)
-        
+        tipo = getattr(servicio, "tipo_servicio", "PASAJERO") or "PASAJERO"
+
+        if tipo == "LOGISTICA":
+            # Para logística: {{3}}=Material, {{4}}=Contacto (nombre + tel)
+            material = getattr(servicio, "descripcion_material", None) or "Material no especificado"
+            # Extraer contacto desde observaciones
+            obs = servicio.observaciones or ""
+            contacto_str = "Ver observaciones"
+            if "Contacto:" in obs:
+                try:
+                    contacto_str = obs.split("Contacto:")[1].strip()
+                except Exception:
+                    pass
+            param3 = f"📦 {material}"
+            param4 = f"👤 Contacto: {contacto_str}"
+        else:
+            # Para pasajero: {{3}}=Nombre pasajero, {{4}}=Teléfono pasajero
+            param3 = usuario.nombre if usuario else "N/A"
+            param4 = usuario.whatsapp if usuario else "N/A"
+
         template_components = [
             {
                 "type": "body",
                 "parameters": [
                     {"type": "text", "text": conductor.nombre},
                     {"type": "text", "text": f"{vehiculo_final} - {placa_final}"},
-                    {"type": "text", "text": pasajero_nombre},
-                    {"type": "text", "text": pasajero_tel},
+                    {"type": "text", "text": param3},
+                    {"type": "text", "text": param4},
                     {"type": "text", "text": servicio.direccion_origen},
                     {"type": "text", "text": servicio.direccion_destino},
                     {"type": "text", "text": hora_str}
                 ]
             }
         ]
-        
+
         background_tasks.add_task(
-            whatsapp.send_whatsapp_template, 
-            conductor_wa, 
-            "asignacion_servicio", 
+            whatsapp.send_whatsapp_template,
+            conductor_wa,
+            "asignacion_servicio",
             template_components,
-            "en" # La plantilla fue creada en English segun el usuario
+            "en"
         )
 
     logger.info(
@@ -1394,7 +1402,8 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
     # Si la sesión tiene un estado del flujo de EMPLEADO (no de supervisor), resetearla
     SUPERVISOR_STATES = {
         "INICIO", "SUP_MENU",
-        "SUP_LOG_MATERIAL", "SUP_LOG_ORIGEN", "SUP_LOG_DESTINO", "SUP_LOG_HORA", "SUP_LOG_CONFIRMAR",
+        "SUP_LOG_MATERIAL", "SUP_LOG_CONTACTO_NOMBRE", "SUP_LOG_CONTACTO_TEL",
+        "SUP_LOG_ORIGEN", "SUP_LOG_DESTINO", "SUP_LOG_HORA", "SUP_LOG_CONFIRMAR",
         "SUP_PER_ORIGEN", "SUP_PER_DESTINO", "SUP_PER_HORA", "SUP_PER_CONFIRMAR",
     }
     if paso not in SUPERVISOR_STATES:
@@ -1451,6 +1460,26 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
         datos["descripcion_material"] = text
         session.datos_temporales = datos
         flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_LOG_CONTACTO_NOMBRE"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "👤 ¿Cuál es el *nombre* de la persona de contacto en el punto de recogida?"}
+
+    elif paso == "SUP_LOG_CONTACTO_NOMBRE":
+        datos = dict(session.datos_temporales or {})
+        datos["contacto_nombre"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_LOG_CONTACTO_TEL"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "📱 ¿Cuál es el *teléfono* de esa persona de contacto?"}
+
+    elif paso == "SUP_LOG_CONTACTO_TEL":
+        datos = dict(session.datos_temporales or {})
+        datos["contacto_tel"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
         session.paso_actual = "SUP_LOG_ORIGEN"
         db.commit()
         return {"action": "send_message", "phone": phone,
@@ -1486,6 +1515,7 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
         return {"action": "send_message", "phone": phone, "message": (
             f"Revisa el resumen del servicio de logística:\n\n"
             f"📦 *Material:* {datos.get('descripcion_material')}\n"
+            f"👤 *Contacto:* {datos.get('contacto_nombre')} · {datos.get('contacto_tel')}\n"
             f"📍 *Recogida:* {datos.get('origen')}\n"
             f"🏁 *Entrega:* {datos.get('destino')}\n"
             f"⏰ *Fecha/Hora:* {datos.get('hora')}\n\n"
@@ -1505,8 +1535,12 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
             direccion_origen=datos.get("origen", "Por confirmar"),
             direccion_destino=datos.get("destino", "Por confirmar"),
             hora_programada=datos.get("hora", "Por confirmar"),
-            observaciones=f"[Solicitado por supervisor: {supervisor.nombre}] | Material: {datos.get('descripcion_material', '')}",
-            estado="AUTORIZADO",  # Auto-autorizado por el supervisor
+            observaciones=(
+                f"[Solicitado por supervisor: {supervisor.nombre}] | "
+                f"Material: {datos.get('descripcion_material', '')} | "
+                f"Contacto: {datos.get('contacto_nombre', '')} - {datos.get('contacto_tel', '')}"
+            ),
+            estado="AUTORIZADO",
             tipo_servicio="LOGISTICA",
             descripcion_material=datos.get("descripcion_material", ""),
             fotos_inicio=[],
@@ -1515,7 +1549,6 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
         db.add(nuevo_servicio)
         db.commit()
         db.refresh(nuevo_servicio)
-        # Reset sesión
         session.paso_actual = "INICIO"
         session.datos_temporales = {}
         flag_modified(session, "datos_temporales")
@@ -1525,6 +1558,7 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
             f"✅ *Servicio de logística creado exitosamente*\n\n"
             f"🆔 *ID del servicio:* #{nuevo_servicio.id}\n"
             f"📦 Material: {datos.get('descripcion_material')}\n"
+            f"👤 Contacto: {datos.get('contacto_nombre')} · {datos.get('contacto_tel')}\n"
             f"📍 De: {datos.get('origen')}\n"
             f"🏁 A: {datos.get('destino')}\n\n"
             f"El administrador asignará un conductor pronto. "
@@ -2102,14 +2136,26 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
                 session.datos_temporales = {"servicio_id": servicio.id, "fotos_inicio": []}
                 flag_modified(session, "datos_temporales")
                 db.commit()
-                return {"action": "send_message", "phone": conductor.whatsapp, "message": (
-                    f"📦 Servicio de logística *#{servicio.id}* iniciado.\n\n"
-                    f"Material: {getattr(servicio, 'descripcion_material', 'N/A')}\n"
-                    f"📍 Recogida: {servicio.direccion_origen}\n"
-                    f"🏁 Entrega: {servicio.direccion_destino}\n\n"
-                    f"Por favor envía las *fotos del material* que estás recogiendo. "
-                    f"Cuando termines escribe *LISTO*."
-                )}
+                # Extraer datos de contacto desde observaciones
+                obs = servicio.observaciones or ""
+                contacto_info = ""
+                if "Contacto:" in obs:
+                    try:
+                        contacto_info = obs.split("Contacto:")[1].strip()
+                    except Exception:
+                        contacto_info = ""
+                material = getattr(servicio, 'descripcion_material', None) or 'N/A'
+                msg = (
+                    f"📦 *Servicio de logística #{servicio.id} iniciado*\n\n"
+                    f"📋 *Material:* {material}\n"
+                    f"📍 *Recogida:* {servicio.direccion_origen}\n"
+                    f"🏁 *Entrega:* {servicio.direccion_destino}\n"
+                )
+                if contacto_info:
+                    msg += f"👤 *Contacto:* {contacto_info}\n"
+                msg += "\nPor favor envía las *fotos del material* que estás recogiendo. Cuando termines escribe *LISTO*."
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": msg}
+
             return {"action": "send_message", "phone": conductor.whatsapp,
                     "message": f"No encontré el servicio de logística #{sid_str} asignado a ti. Verifica el ID."}
         except (ValueError, TypeError):
