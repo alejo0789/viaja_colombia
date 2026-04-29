@@ -1505,7 +1505,7 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
             direccion_origen=datos.get("origen", "Por confirmar"),
             direccion_destino=datos.get("destino", "Por confirmar"),
             hora_programada=datos.get("hora", "Por confirmar"),
-            observaciones=f"[Solicitado por supervisor: {supervisor.nombre}]",
+            observaciones=f"[Solicitado por supervisor: {supervisor.nombre}] | Material: {datos.get('descripcion_material', '')}",
             estado="AUTORIZADO",  # Auto-autorizado por el supervisor
             tipo_servicio="LOGISTICA",
             descripcion_material=datos.get("descripcion_material", ""),

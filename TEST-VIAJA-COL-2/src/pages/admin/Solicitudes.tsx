@@ -31,7 +31,7 @@ import { adminAPI } from '@/services/api';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRealtimeSolicitudes } from '@/hooks/useRealtimeSolicitudes';
-import { FileDown, Search, Truck, MapPin, Clock, User, Building2, MoreVertical, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { FileDown, Search, Truck, MapPin, Clock, User, Building2, MoreVertical, ChevronLeft, ChevronRight, RefreshCw, Package } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,12 +219,20 @@ export default function Solicitudes() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
-                <RefreshCw size={14} className={solicitud.es_retorno ? 'text-purple-600' : 'text-slate-400'} />
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                solicitud.tipo_servicio === 'LOGISTICA' ? 'bg-amber-50' : 'bg-blue-50'
+              }`}>
+                {solicitud.tipo_servicio === 'LOGISTICA'
+                  ? <Package size={14} className="text-amber-600" />
+                  : <User size={14} className="text-blue-600" />}
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1 tracking-wider">Tipo</p>
-                <p className="text-sm font-bold text-slate-700 truncate">{solicitud.es_retorno ? 'Retorno' : 'Normal'}</p>
+                <p className={`text-sm font-bold truncate ${
+                  solicitud.tipo_servicio === 'LOGISTICA' ? 'text-amber-600' : 'text-blue-600'
+                }`}>
+                  {solicitud.tipo_servicio === 'LOGISTICA' ? '📦 Logística' : '🚗 Pasajero'}
+                </p>
               </div>
             </div>
           </div>
@@ -354,6 +362,7 @@ export default function Solicitudes() {
                     <TableHead className="w-[100px] font-bold text-slate-900">ID</TableHead>
                     <TableHead className="font-bold text-slate-900">Pasajero / Empresa</TableHead>
                     <TableHead className="font-bold text-slate-900">Origen / Destino</TableHead>
+                    <TableHead className="font-bold text-slate-900">Tipo</TableHead>
                     <TableHead className="font-bold text-slate-900">F. Solicitud</TableHead>
                     <TableHead className="font-bold text-slate-900">Hora Prog.</TableHead>
                     <TableHead className="font-bold text-slate-900">Autorización</TableHead>
@@ -365,7 +374,7 @@ export default function Solicitudes() {
                 <TableBody className="divide-y divide-slate-100">
                   {isLoadingSolicitudes ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-20">
+                      <TableCell colSpan={10} className="text-center py-20">
                         <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-r-transparent" />
                       </TableCell>
                     </TableRow>
@@ -391,6 +400,18 @@ export default function Solicitudes() {
                             <TruncatedCell text={solicitud.destino} maxWidth="200px" />
                           </div>
                         </div>
+                      </TableCell>
+                      {/* NUEVA COLUMNA: Tipo de Servicio */}
+                      <TableCell>
+                        {solicitud.tipo_servicio === 'LOGISTICA' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold">
+                            <Package size={11} /> Logística
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold">
+                            <User size={11} /> Pasajero
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <p className="text-xs font-bold text-slate-700">{solicitud.fecha}</p>
