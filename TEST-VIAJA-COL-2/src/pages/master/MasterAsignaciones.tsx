@@ -15,7 +15,7 @@ import StatusBadge from '@/components/admin/StatusBadge';
 import { adminAPI } from '@/services/api';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { FileDown, Search, RefreshCw, DollarSign, Eye } from 'lucide-react';
+import { FileDown, Search, RefreshCw, DollarSign, Eye, Package, User, Images, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   Select,
@@ -24,8 +24,123 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
-// Reuse truncated cell pattern
+// ── Visor de imágenes ────────────────────────────────────────────────────────
+function PhotoViewer({ fotos_inicio, fotos_fin, servicioId, onClose }: {
+  fotos_inicio: string[];
+  fotos_fin: string[];
+  servicioId: number | string;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<'inicio' | 'fin'>('inicio');
+  const [idx, setIdx] = useState(0);
+
+  const fotos = tab === 'inicio' ? fotos_inicio : fotos_fin;
+  const total = fotos.length;
+
+  return (
+    <DialogContent className="max-w-2xl w-[95vw] rounded-2xl p-0 overflow-hidden">
+      <DialogHeader className="p-5 pb-0">
+        <DialogTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+          <Images size={20} className="text-amber-500" />
+          Evidencias fotográficas — Servicio #{servicioId}
+        </DialogTitle>
+      </DialogHeader>
+
+      {/* Tabs */}
+      <div className="flex gap-2 px-5 pt-4">
+        <button
+          onClick={() => { setTab('inicio'); setIdx(0); }}
+          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+            tab === 'inicio'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          }`}
+        >
+          📦 Recogida ({fotos_inicio.length})
+        </button>
+        <button
+          onClick={() => { setTab('fin'); setIdx(0); }}
+          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+            tab === 'fin'
+              ? 'bg-emerald-600 text-white shadow'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          }`}
+        >
+          ✅ Entrega ({fotos_fin.length})
+        </button>
+      </div>
+
+      {/* Visor */}
+      <div className="p-5">
+        {total === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <Images size={40} className="mb-3 opacity-30" />
+            <p className="font-medium">No hay fotos de {tab === 'inicio' ? 'recogida' : 'entrega'} aún</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Imagen principal */}
+            <div className="relative bg-black rounded-2xl overflow-hidden" style={{ height: '340px' }}>
+              <img
+                src={fotos[idx]}
+                alt={`Foto ${idx + 1}`}
+                className="w-full h-full object-contain"
+              />
+              {/* Navegación */}
+              {total > 1 && (
+                <>
+                  <button
+                    onClick={() => setIdx(i => Math.max(0, i - 1))}
+                    disabled={idx === 0}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-20 hover:bg-black/70 transition"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    onClick={() => setIdx(i => Math.min(total - 1, i + 1))}
+                    disabled={idx === total - 1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-20 hover:bg-black/70 transition"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                  <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                    {idx + 1} / {total}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Thumbnails */}
+            {total > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {fotos.map((url, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setIdx(i)}
+                    className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
+                      i === idx ? 'border-blue-500 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={url} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </DialogContent>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 const TruncatedCell = ({ text, maxWidth = "120px" }: { text: string; maxWidth?: string }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   if (!text || text === '-') return <span className="text-gray-400">-</span>;
@@ -52,22 +167,20 @@ const formatPrice = (value: string | number) => {
   return '$\u00a0' + num.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
+// ── Página principal ──────────────────────────────────────────────────────────
 export default function MasterAsignaciones() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMes, setFilterMes] = useState('all');
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
+  const [selectedFotos, setSelectedFotos] = useState<any | null>(null);
 
-  const empresaNombre = user?.empresaClienteId ? undefined : undefined;
-
-  // Obtener datos del dashboard para saber a qué empresa pertenece
   const { data: masterData } = useQuery({
     queryKey: ['master-dashboard'],
     queryFn: () => adminAPI.getMasterDashboard(),
   });
 
-  // Cargar asignaciones — se filtra por empresa via el API
   const { data: solicitudesData, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['master-asignaciones', filterMes, filterDesde, filterHasta],
     queryFn: () =>
@@ -78,16 +191,13 @@ export default function MasterAsignaciones() {
         hasta: filterHasta || undefined,
         size: 500,
       }),
-    refetchInterval: 30000, // Auto-actualiza cada 30s para capturar cambios de precio
+    refetchInterval: 30000,
   });
 
   const todasSolicitudes = solicitudesData?.data || [];
-
-  // Filtrar solo las solicitudes de la empresa del Supervisor General
   const empresaId = user?.empresaClienteId;
   const solicitudes = todasSolicitudes.filter((s: any) => {
     if (!empresaId) return true;
-    // Match by name from master dashboard data
     if (masterData?.empresa_nombre && s.empresa) {
       return s.empresa === masterData.empresa_nombre;
     }
@@ -122,6 +232,7 @@ export default function MasterAsignaciones() {
     if (filteredSolicitudes.length === 0) return;
     const dataToExport = filteredSolicitudes.map((s: any) => ({
       ID: s.id,
+      'Tipo': s.tipo_servicio || 'PASAJERO',
       'Fecha Solicitud': s.fecha,
       Empresa: s.empresa,
       Empleado: s.empleado,
@@ -271,7 +382,8 @@ export default function MasterAsignaciones() {
               <TableRow className="bg-gray-50 border-b">
                 <TableHead className="font-bold">ID</TableHead>
                 <TableHead className="font-bold">F. Solicitud</TableHead>
-                <TableHead className="font-bold">Pasajero</TableHead>
+                <TableHead className="font-bold">Tipo</TableHead>
+                <TableHead className="font-bold">Pasajero / Material</TableHead>
                 <TableHead className="font-bold">Autorizador</TableHead>
                 <TableHead className="font-bold">Origen</TableHead>
                 <TableHead className="font-bold">Destino</TableHead>
@@ -284,12 +396,13 @@ export default function MasterAsignaciones() {
                 <TableHead className="font-bold text-purple-700 flex items-center gap-1">
                   <DollarSign size={14} /> Precio
                 </TableHead>
+                <TableHead className="font-bold text-amber-600">Fotos</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-16">
+                  <TableCell colSpan={15} className="text-center py-16">
                     <div className="flex flex-col items-center gap-3">
                       <RefreshCw className="animate-spin text-purple-400" size={32} />
                       <p className="text-gray-400 font-medium">Cargando asignaciones...</p>
@@ -298,7 +411,7 @@ export default function MasterAsignaciones() {
                 </TableRow>
               ) : filteredSolicitudes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-16 text-gray-400">
+                  <TableCell colSpan={15} className="text-center py-16 text-gray-400">
                     <Eye size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="font-medium">No se encontraron servicios asignados</p>
                     <p className="text-xs mt-1">Intenta cambiar los filtros</p>
@@ -314,6 +427,12 @@ export default function MasterAsignaciones() {
                     duracionDisplay = `${diffMin} min (en curso)`;
                   }
 
+                  const tipo = s.tipo_servicio || 'PASAJERO';
+                  const esLogistica = tipo === 'LOGISTICA';
+                  const fotosInicio: string[] = s.fotos_inicio || [];
+                  const fotosFin: string[] = s.fotos_fin || [];
+                  const totalFotos = fotosInicio.length + fotosFin.length;
+
                   return (
                     <TableRow key={s.id} className="hover:bg-gray-50 transition-colors">
                       <TableCell className="font-bold text-blue-900">{s.id}</TableCell>
@@ -323,7 +442,32 @@ export default function MasterAsignaciones() {
                           <span className="opacity-70">{s.fecha?.split(',')[1]}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{s.empleado}</TableCell>
+
+                      {/* TIPO */}
+                      <TableCell>
+                        {esLogistica ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold whitespace-nowrap">
+                            <Package size={11} /> Logística
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold whitespace-nowrap">
+                            <User size={11} /> Pasajero
+                          </span>
+                        )}
+                      </TableCell>
+
+                      {/* Pasajero / Material */}
+                      <TableCell className="text-sm">
+                        {esLogistica ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Material</span>
+                            <span className="font-semibold text-slate-700 text-xs">{s.descripcion_material || s.observaciones?.split('|')[1]?.replace('Material:', '').trim() || '—'}</span>
+                          </div>
+                        ) : (
+                          <span>{s.empleado}</span>
+                        )}
+                      </TableCell>
+
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-semibold text-gray-900 text-xs">{s.autorizador_nombre || 'N/A'}</span>
@@ -364,7 +508,6 @@ export default function MasterAsignaciones() {
                           {duracionDisplay}
                         </span>
                       </TableCell>
-                      {/* Precio: solo lectura con badge visual */}
                       <TableCell>
                         {s.precio > 0 ? (
                           <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded text-sm whitespace-nowrap">
@@ -372,6 +515,23 @@ export default function MasterAsignaciones() {
                           </span>
                         ) : (
                           <span className="text-gray-300 text-xs italic">Sin precio</span>
+                        )}
+                      </TableCell>
+
+                      {/* FOTOS */}
+                      <TableCell>
+                        {esLogistica ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-xl text-xs font-bold"
+                            onClick={() => setSelectedFotos(s)}
+                          >
+                            <Images size={13} />
+                            {totalFotos > 0 ? `${totalFotos} foto${totalFotos !== 1 ? 's' : ''}` : 'Ver'}
+                          </Button>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -382,6 +542,18 @@ export default function MasterAsignaciones() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal visor de fotos */}
+      <Dialog open={!!selectedFotos} onOpenChange={(open) => { if (!open) setSelectedFotos(null); }}>
+        {selectedFotos && (
+          <PhotoViewer
+            fotos_inicio={selectedFotos.fotos_inicio || []}
+            fotos_fin={selectedFotos.fotos_fin || []}
+            servicioId={selectedFotos.id}
+            onClose={() => setSelectedFotos(null)}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }
