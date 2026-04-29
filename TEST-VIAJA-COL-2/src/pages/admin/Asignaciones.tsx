@@ -525,23 +525,23 @@ export default function Asignaciones() {
 
         {/* Desktop View */}
         <div className="hidden lg:block overflow-x-auto">
-          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white min-w-[1200px]">
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                   <TableRow>
-                    <TableHead className="w-[80px] font-bold text-slate-900">ID</TableHead>
-                    <TableHead className="w-[120px] font-bold text-slate-900">Tipo</TableHead>
-                    <TableHead className="w-[180px] font-bold text-slate-900">Pasajero / Material</TableHead>
+                    <TableHead className="w-[60px] font-bold text-slate-900">ID</TableHead>
+                    <TableHead className="w-[100px] font-bold text-slate-900">Tipo</TableHead>
+                    <TableHead className="font-bold text-slate-900">Pasajero / Material</TableHead>
                     <TableHead className="font-bold text-slate-900">Ruta (Origen → Destino)</TableHead>
-                    <TableHead className="w-[180px] font-bold text-slate-900">Conductor</TableHead>
-                    <TableHead className="w-[100px] font-bold text-slate-900">F. Solicitud</TableHead>
-                    <TableHead className="w-[100px] font-bold text-slate-900">Hora Prog.</TableHead>
-                    <TableHead className="w-[130px] font-bold text-slate-900 text-center">Tiempos</TableHead>
-                    <TableHead className="w-[110px] font-bold text-slate-900 text-center">Estado</TableHead>
-                    <TableHead className="font-bold text-slate-900">Observaciones</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-amber-600">Fotos</TableHead>
-                    <TableHead className="w-[140px] font-bold text-slate-900 text-right pr-6">Valor ($)</TableHead>
+                    <TableHead className="w-[140px] font-bold text-slate-900">Conductor</TableHead>
+                    <TableHead className="w-[85px] font-bold text-slate-900">F. Sol.</TableHead>
+                    <TableHead className="w-[90px] font-bold text-slate-900">Hora Prog.</TableHead>
+                    <TableHead className="w-[120px] font-bold text-slate-900 text-center">Tiempos</TableHead>
+                    <TableHead className="w-[90px] font-bold text-slate-900 text-center">Estado</TableHead>
+                    <TableHead className="w-[130px] font-bold text-slate-900">Observaciones</TableHead>
+                    <TableHead className="w-[80px] font-bold text-slate-900 text-amber-600">Fotos</TableHead>
+                    <TableHead className="w-[120px] font-bold text-slate-900 text-right pr-4">Valor ($)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">

@@ -122,7 +122,7 @@ export default function AdminLayout() {
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto bg-[#F8FAFC]">
-          <div className="p-4 md:p-8 lg:p-10 max-w-7xl mx-auto">
+          <div className="p-4 md:p-6 w-full">
             <Outlet />
           </div>
         </main>
