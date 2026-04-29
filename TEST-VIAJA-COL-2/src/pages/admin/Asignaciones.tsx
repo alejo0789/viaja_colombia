@@ -35,7 +35,9 @@ import {
   RefreshCw,
   ArrowRight,
   Pencil,
-  CheckCircle2
+  CheckCircle2,
+  Package,
+  Images
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -52,6 +54,87 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+// ── Visor de fotos de logística ───────────────────────────────────────────────
+function PhotoViewer({ fotos_inicio, fotos_fin, servicioId }: {
+  fotos_inicio: string[];
+  fotos_fin: string[];
+  servicioId: number | string;
+}) {
+  const [tab, setTab] = React.useState<'inicio' | 'fin'>('inicio');
+  const [idx, setIdx] = React.useState(0);
+  const fotos = tab === 'inicio' ? fotos_inicio : fotos_fin;
+  const total = fotos.length;
+  return (
+    <DialogContent className="max-w-2xl w-[95vw] rounded-2xl p-0 overflow-hidden">
+      <DialogHeader className="p-5 pb-0">
+        <DialogTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+          <Images size={20} className="text-amber-500" />
+          Evidencias fotográficas — Servicio #{servicioId}
+        </DialogTitle>
+      </DialogHeader>
+      <div className="flex gap-2 px-5 pt-4">
+        <button onClick={() => { setTab('inicio'); setIdx(0); }}
+          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+            tab === 'inicio' ? 'bg-blue-600 text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          }`}>
+          📦 Recogida ({fotos_inicio.length})
+        </button>
+        <button onClick={() => { setTab('fin'); setIdx(0); }}
+          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+            tab === 'fin' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          }`}>
+          ✅ Entrega ({fotos_fin.length})
+        </button>
+      </div>
+      <div className="p-5">
+        {total === 0 ? (
+          <div className="h-56 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+            <Images size={36} className="mb-3 opacity-30" />
+            <p className="font-medium">No hay fotos de {tab === 'inicio' ? 'recogida' : 'entrega'} aún</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="relative bg-black rounded-2xl overflow-hidden" style={{ height: '300px' }}>
+              <img src={fotos[idx]} alt={`Foto ${idx + 1}`} className="w-full h-full object-contain" />
+              {total > 1 && (
+                <>
+                  <button onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx === 0}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-20 hover:bg-black/70 transition">
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button onClick={() => setIdx(i => Math.min(total - 1, i + 1))} disabled={idx === total - 1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-20 hover:bg-black/70 transition">
+                    <ChevronRight size={18} />
+                  </button>
+                  <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg">{idx + 1} / {total}</span>
+                </>
+              )}
+            </div>
+            {total > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {fotos.map((url, i) => (
+                  <button key={i} onClick={() => setIdx(i)}
+                    className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
+                      i === idx ? 'border-blue-500 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}>
+                    <img src={url} alt={`thumb-${i}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </DialogContent>
+  );
+}
 
 // Componente ayudante para mostrar texto truncado que se expande al hacer clic
 const TruncatedCell = ({ text, maxWidth = "120px", className = "" }: { text: string; maxWidth?: string; className?: string }) => {
@@ -77,12 +160,13 @@ const TruncatedCell = ({ text, maxWidth = "120px", className = "" }: { text: str
 
 export default function Asignaciones() {
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
-  const [filterEmpresa, setFilterEmpresa] = useState('all');
-  const [filterMes, setFilterMes] = useState('all');
-  const [filterDesde, setFilterDesde] = useState('');
-  const [filterHasta, setFilterHasta] = useState('');
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const [filterEmpresa, setFilterEmpresa] = React.useState('all');
+  const [filterMes, setFilterMes] = React.useState('all');
+  const [filterDesde, setFilterDesde] = React.useState('');
+  const [filterHasta, setFilterHasta] = React.useState('');
+  const [selectedFotos, setSelectedFotos] = React.useState<any | null>(null);
 
   // Cargar empresas para el select
   const { data: empresasData } = useQuery({
@@ -447,7 +531,8 @@ export default function Asignaciones() {
                 <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                   <TableRow>
                     <TableHead className="w-[80px] font-bold text-slate-900">ID</TableHead>
-                    <TableHead className="w-[180px] font-bold text-slate-900">Pasajero / Empresa</TableHead>
+                    <TableHead className="w-[120px] font-bold text-slate-900">Tipo</TableHead>
+                    <TableHead className="w-[180px] font-bold text-slate-900">Pasajero / Material</TableHead>
                     <TableHead className="font-bold text-slate-900">Ruta (Origen → Destino)</TableHead>
                     <TableHead className="w-[180px] font-bold text-slate-900">Conductor</TableHead>
                     <TableHead className="w-[100px] font-bold text-slate-900">F. Solicitud</TableHead>
@@ -455,6 +540,7 @@ export default function Asignaciones() {
                     <TableHead className="w-[130px] font-bold text-slate-900 text-center">Tiempos</TableHead>
                     <TableHead className="w-[110px] font-bold text-slate-900 text-center">Estado</TableHead>
                     <TableHead className="font-bold text-slate-900">Observaciones</TableHead>
+                    <TableHead className="font-bold text-slate-900 text-amber-600">Fotos</TableHead>
                     <TableHead className="w-[140px] font-bold text-slate-900 text-right pr-6">Valor ($)</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -479,11 +565,31 @@ export default function Asignaciones() {
                         <TableCell className="font-black text-slate-400 text-xs">
                           #{s.id}
                         </TableCell>
+                        {/* TIPO */}
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-900 text-sm">{s.empleado}</span>
-                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">{s.empresa}</span>
-                          </div>
+                          {(s.tipo_servicio || 'PASAJERO') === 'LOGISTICA' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold whitespace-nowrap">
+                              <Package size={11} /> Logística
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold whitespace-nowrap">
+                              <User size={11} /> Pasajero
+                            </span>
+                          )}
+                        </TableCell>
+                        {/* Pasajero / Material */}
+                        <TableCell>
+                          {(s.tipo_servicio || 'PASAJERO') === 'LOGISTICA' ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Material</span>
+                              <span className="font-semibold text-slate-700 text-xs">{s.descripcion_material || '—'}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-900 text-sm">{s.empleado}</span>
+                              <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">{s.empresa}</span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3 py-1">
@@ -529,6 +635,24 @@ export default function Asignaciones() {
                         <TableCell>
                           <TruncatedCell text={s.observaciones} maxWidth="120px" />
                         </TableCell>
+                        {/* FOTOS */}
+                        <TableCell>
+                          {(s.tipo_servicio || 'PASAJERO') === 'LOGISTICA' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-xl text-xs font-bold"
+                              onClick={() => setSelectedFotos(s)}
+                            >
+                              <Images size={13} />
+                              {((s.fotos_inicio || []).length + (s.fotos_fin || []).length) > 0
+                                ? `${(s.fotos_inicio || []).length + (s.fotos_fin || []).length} fotos`
+                                : 'Ver'}
+                            </Button>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right pr-6">
                           <PriceEditor value={s.precio} onSave={handleUpdatePrice} solicitud={s} />
                         </TableCell>
@@ -542,32 +666,35 @@ export default function Asignaciones() {
         </div>
       </div>
 
-      {/* Pagination (Simplified for now) */}
+      {/* Pagination */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mt-4">
         <p className="text-sm font-bold text-slate-400">
           Página <span className="text-slate-900">{page}</span> de <span className="text-slate-900">{totalPages}</span>
         </p>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl h-10 px-4 border-slate-200"
+          <Button variant="outline" size="sm" className="rounded-xl h-10 px-4 border-slate-200"
             onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo(0, 0); }}
-            disabled={page === 1}
-          >
+            disabled={page === 1}>
             <ChevronLeft size={18} className="mr-1" /> Anterior
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl h-10 px-4 border-slate-200"
+          <Button variant="outline" size="sm" className="rounded-xl h-10 px-4 border-slate-200"
             onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo(0, 0); }}
-            disabled={page === totalPages}
-          >
+            disabled={page === totalPages}>
             Siguiente <ChevronRight size={18} className="ml-1" />
           </Button>
         </div>
       </div>
+
+      {/* Modal visor de fotos */}
+      <Dialog open={!!selectedFotos} onOpenChange={(open) => { if (!open) setSelectedFotos(null); }}>
+        {selectedFotos && (
+          <PhotoViewer
+            fotos_inicio={selectedFotos.fotos_inicio || []}
+            fotos_fin={selectedFotos.fotos_fin || []}
+            servicioId={selectedFotos.id}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }
