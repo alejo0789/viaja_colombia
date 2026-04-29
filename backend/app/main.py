@@ -307,7 +307,9 @@ async def get_admin_dashboard(
         "stats": {
             "completados": q_status.filter(models.Servicio.estado == "COMPLETADO").count(),
             "pendientes": q_status.filter(models.Servicio.estado == "PENDIENTE").count(),
-            "cancelados": q_status.filter(models.Servicio.estado == "CANCELADO").count()
+            "cancelados": q_status.filter(models.Servicio.estado == "CANCELADO").count(),
+            "logistica": q_status.filter(models.Servicio.tipo_servicio == "LOGISTICA").count(),
+            "pasajeros": q_status.filter((models.Servicio.tipo_servicio == "PASAJERO") | (models.Servicio.tipo_servicio == None)).count()
         },
         "solicitudesPorEmpresa": solicitudes_por_empresa
     }

@@ -72,58 +72,88 @@ function PhotoViewer({ fotos_inicio, fotos_fin, servicioId }: {
   const fotos = tab === 'inicio' ? fotos_inicio : fotos_fin;
   const total = fotos.length;
   return (
-    <DialogContent className="max-w-2xl w-[95vw] rounded-2xl p-0 overflow-hidden">
-      <DialogHeader className="p-5 pb-0">
-        <DialogTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
-          <Images size={20} className="text-amber-500" />
-          Evidencias fotográficas — Servicio #{servicioId}
+    <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+      <DialogHeader className="p-6 pb-2 shrink-0">
+        <DialogTitle className="text-2xl font-black text-slate-900 flex items-center gap-3">
+          <div className="bg-amber-100 p-2 rounded-xl text-amber-600">
+            <Images size={24} />
+          </div>
+          Evidencias — Servicio #{servicioId}
         </DialogTitle>
       </DialogHeader>
-      <div className="flex gap-2 px-5 pt-4">
+      
+      <div className="flex gap-3 px-6 pt-2 shrink-0">
         <button onClick={() => { setTab('inicio'); setIdx(0); }}
-          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
-            tab === 'inicio' ? 'bg-blue-600 text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          className={`flex-1 py-3 rounded-2xl text-sm font-black transition-all border-2 ${
+            tab === 'inicio' 
+              ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' 
+              : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'
           }`}>
-          📦 Recogida ({fotos_inicio.length})
+          📦 RECOGIDA ({fotos_inicio.length})
         </button>
         <button onClick={() => { setTab('fin'); setIdx(0); }}
-          className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
-            tab === 'fin' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          className={`flex-1 py-3 rounded-2xl text-sm font-black transition-all border-2 ${
+            tab === 'fin' 
+              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+              : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100'
           }`}>
-          ✅ Entrega ({fotos_fin.length})
+          ✅ ENTREGA ({fotos_fin.length})
         </button>
       </div>
-      <div className="p-5">
+
+      <div className="flex-1 p-6 overflow-hidden flex flex-col gap-4">
         {total === 0 ? (
-          <div className="h-56 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-            <Images size={36} className="mb-3 opacity-30" />
-            <p className="font-medium">No hay fotos de {tab === 'inicio' ? 'recogida' : 'entrega'} aún</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-3xl border-4 border-dashed border-slate-100">
+            <Images size={64} className="mb-4 opacity-20" />
+            <p className="text-lg font-bold">Sin registros de {tab === 'inicio' ? 'recogida' : 'entrega'}</p>
+            <p className="text-sm">El conductor aún no ha subido fotos para esta fase.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="relative bg-black rounded-2xl overflow-hidden" style={{ height: '300px' }}>
-              <img src={fotos[idx]} alt={`Foto ${idx + 1}`} className="w-full h-full object-contain" />
+          <div className="flex-1 flex flex-col min-h-0 gap-4">
+            {/* Imagen principal */}
+            <div className="flex-1 relative bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-inner group">
+              <img 
+                src={fotos[idx]} 
+                alt={`Foto ${idx + 1}`} 
+                className="w-full h-full object-contain select-none" 
+              />
+              
               {total > 1 && (
                 <>
-                  <button onClick={() => setIdx(i => Math.max(0, i - 1))} disabled={idx === 0}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-20 hover:bg-black/70 transition">
-                    <ChevronLeft size={18} />
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setIdx(i => Math.max(0, i - 1)); }} 
+                    disabled={idx === 0}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white flex items-center justify-center disabled:opacity-0 transition-all border border-white/10"
+                  >
+                    <ChevronLeft size={24} />
                   </button>
-                  <button onClick={() => setIdx(i => Math.min(total - 1, i + 1))} disabled={idx === total - 1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center disabled:opacity-20 hover:bg-black/70 transition">
-                    <ChevronRight size={18} />
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setIdx(i => Math.min(total - 1, i + 1)); }} 
+                    disabled={idx === total - 1}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white flex items-center justify-center disabled:opacity-0 transition-all border border-white/10"
+                  >
+                    <ChevronRight size={24} />
                   </button>
-                  <span className="absolute bottom-3 right-3 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-lg">{idx + 1} / {total}</span>
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md text-white text-xs font-black px-4 py-2 rounded-full border border-white/10 tracking-widest uppercase">
+                    Imagen {idx + 1} de {total}
+                  </div>
                 </>
               )}
             </div>
+
+            {/* Thumbnails */}
             {total > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1">
+              <div className="h-20 flex gap-3 overflow-x-auto pb-2 px-1 shrink-0 scrollbar-hide">
                 {fotos.map((url, i) => (
-                  <button key={i} onClick={() => setIdx(i)}
-                    className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
-                      i === idx ? 'border-blue-500 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
-                    }`}>
+                  <button 
+                    key={i} 
+                    onClick={() => setIdx(i)}
+                    className={`shrink-0 w-20 h-full rounded-2xl overflow-hidden border-4 transition-all duration-300 ${
+                      i === idx 
+                        ? 'border-blue-500 scale-105 shadow-lg shadow-blue-500/30' 
+                        : 'border-white opacity-40 hover:opacity-100 hover:scale-105'
+                    }`}
+                  >
                     <img src={url} alt={`thumb-${i}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
