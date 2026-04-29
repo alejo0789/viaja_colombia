@@ -1323,14 +1323,16 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
     ).first()
 
     # Enrutamiento Inteligente
+    # IMPORTANTE: supervisor se evalúa ANTES que usuario para evitar conflicto
+    # si el número está en ambas tablas.
     if is_supervisor_cmd and supervisor:
         result = handle_supervisor_message(supervisor, text, db)
     elif conductor:
         result = handle_conductor_message(conductor, text, db, media_id=media_id)
-    elif usuario:
-        result = handle_user_session(usuario, text, db)
     elif supervisor:
         result = handle_supervisor_session(supervisor, text, db)
+    elif usuario:
+        result = handle_user_session(usuario, text, db)
     else:
         result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema. Contacta a tu administrador."}
 
@@ -1388,6 +1390,21 @@ def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Sess
     paso = session.paso_actual
     phone = supervisor.whatsapp
     text_up = text.upper().strip()
+
+    # Si la sesión tiene un estado del flujo de EMPLEADO (no de supervisor), resetearla
+    SUPERVISOR_STATES = {
+        "INICIO", "SUP_MENU",
+        "SUP_LOG_MATERIAL", "SUP_LOG_ORIGEN", "SUP_LOG_DESTINO", "SUP_LOG_HORA", "SUP_LOG_CONFIRMAR",
+        "SUP_PER_ORIGEN", "SUP_PER_DESTINO", "SUP_PER_HORA", "SUP_PER_CONFIRMAR",
+    }
+    if paso not in SUPERVISOR_STATES:
+        logger.info(f"Supervisor {supervisor.nombre} tenía sesión en estado '{paso}' (flujo incorrecto). Reseteando.")
+        session.paso_actual = "INICIO"
+        session.datos_temporales = {}
+        flag_modified(session, "datos_temporales")
+        db.commit()
+        paso = "INICIO"
+
 
     # Comando global de cancelación
     if text_up in ["CANCELAR", "SALIR", "MENU"]:
