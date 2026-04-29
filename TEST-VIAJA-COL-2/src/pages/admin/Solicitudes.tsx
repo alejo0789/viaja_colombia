@@ -196,12 +196,22 @@ export default function Solicitudes() {
         
         <div className="p-4 space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-              <User size={14} className="text-blue-600" />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              solicitud.tipo_servicio === 'LOGISTICA' ? 'bg-amber-50' : 'bg-blue-50'
+            }`}>
+              {solicitud.tipo_servicio === 'LOGISTICA'
+                ? <Package size={14} className="text-amber-600" />
+                : <User size={14} className="text-blue-600" />}
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1 tracking-wider">Pasajero</p>
-              <p className="text-sm font-bold text-slate-700 truncate">{solicitud.empleado || solicitud.empleado_nombre}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-400 leading-none mb-1 tracking-wider">
+                {solicitud.tipo_servicio === 'LOGISTICA' ? 'Material' : 'Pasajero'}
+              </p>
+              <p className="text-sm font-bold text-slate-700 truncate">
+                {solicitud.tipo_servicio === 'LOGISTICA'
+                  ? (solicitud.descripcion_material || 'N/A')
+                  : (solicitud.empleado || solicitud.empleado_nombre)}
+              </p>
             </div>
           </div>
 
@@ -385,7 +395,14 @@ export default function Solicitudes() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
-                          <p className="font-bold text-slate-900">{solicitud.empleado || solicitud.empleado_nombre}</p>
+                          {solicitud.tipo_servicio === 'LOGISTICA' ? (
+                            <>
+                              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider leading-none">Material</span>
+                              <p className="font-bold text-slate-900">{solicitud.descripcion_material || '—'}</p>
+                            </>
+                          ) : (
+                            <p className="font-bold text-slate-900">{solicitud.empleado || solicitud.empleado_nombre}</p>
+                          )}
                           <p className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">{solicitud.empresa || 'N/A'}</p>
                         </div>
                       </TableCell>
