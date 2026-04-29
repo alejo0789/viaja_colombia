@@ -6,8 +6,20 @@ from sqlalchemy.orm.attributes import flag_modified
 import json
 import logging
 import secrets
+import os
+import requests as http_requests
 from datetime import datetime, timedelta, timezone
 COLOMBIA_TZ = timezone(timedelta(hours=-5))
+
+# Cloudinary
+import cloudinary
+import cloudinary.uploader
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -420,7 +432,12 @@ async def get_admin_solicitudes(
             "autorizador_nombre": s.supervisor.nombre if s.supervisor else "N/A",
             "autorizador_area": s.supervisor.area if s.supervisor else "N/A",
             "es_retorno": s.es_retorno,
-            "retorno_de_id": f"SOL-{s.retorno_de_id}" if s.retorno_de_id else None
+            "retorno_de_id": f"SOL-{s.retorno_de_id}" if s.retorno_de_id else None,
+            # --- Logística ---
+            "tipo_servicio": getattr(s, "tipo_servicio", "PASAJERO") or "PASAJERO",
+            "descripcion_material": getattr(s, "descripcion_material", None),
+            "fotos_inicio": getattr(s, "fotos_inicio", None) or [],
+            "fotos_fin": getattr(s, "fotos_fin", None) or [],
         })
         
     return {
@@ -665,6 +682,40 @@ async def delete_dashboard_user(user_id: int, db: Session = Depends(get_db)):
 def throw_http_err(code: int, detail: str):
     from fastapi import HTTPException
     raise HTTPException(status_code=code, detail=detail)
+
+def upload_whatsapp_image_to_cloudinary(media_id: str) -> str | None:
+    """
+    Descarga una imagen de WhatsApp usando su media_id y la sube a Cloudinary.
+    Retorna la URL segura de Cloudinary, o None si falla.
+    """
+    from .whatsapp import WHATSAPP_TOKEN, WHATSAPP_PHONE_ID
+    try:
+        auth_headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
+        # Paso 1: Obtener URL real de descarga desde la API de Meta
+        meta_resp = http_requests.get(
+            f"https://graph.facebook.com/v19.0/{media_id}",
+            headers=auth_headers, timeout=15
+        )
+        meta_resp.raise_for_status()
+        media_url = meta_resp.json().get("url")
+        if not media_url:
+            logger.error("No se obtuvo URL del media de WhatsApp")
+            return None
+        # Paso 2: Descargar la imagen
+        img_resp = http_requests.get(media_url, headers=auth_headers, timeout=30)
+        img_resp.raise_for_status()
+        # Paso 3: Subir a Cloudinary
+        result = cloudinary.uploader.upload(
+            img_resp.content,
+            folder="viaja_colombia/logistica",
+            resource_type="image"
+        )
+        url = result.get("secure_url")
+        logger.info(f"Imagen subida a Cloudinary: {url}")
+        return url
+    except Exception as e:
+        logger.error(f"Error subiendo imagen a Cloudinary: {e}")
+        return None
 
 # ---------------------------------------------------------------------------
 # CONDUCTORES (admin)
@@ -1216,8 +1267,9 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
     msg_data = messages[0]
     phone = msg_data.get("from")
     msg_type = msg_data.get("type")
-    
-    # META API Interactive Buttons replies come as 'interactive' type
+
+    # Extraer texto según tipo de mensaje
+    media_id = None  # Para imágenes de WhatsApp
     if msg_type == "text":
         text = msg_data.get("text", {}).get("body", "").strip()
     elif msg_type == "interactive":
@@ -1228,11 +1280,18 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
             text = ""
     elif msg_type == "button":
         text = msg_data.get("button", {}).get("payload", "").strip()
+    elif msg_type == "image":
+        # Imagen enviada por el conductor para fotos de logística
+        text = ""
+        media_id = msg_data.get("image", {}).get("id")
     else:
-        text = "" 
-        
-    if not phone or not text:
-        return {"status": "ignored", "reason": "Mensaje sin texto o número telefónico"}
+        text = ""
+
+    if not phone:
+        return {"status": "ignored", "reason": "Sin número telefónico"}
+    # Ignorar si no hay texto Y no hay imagen
+    if not text and not media_id:
+        return {"status": "ignored", "reason": "Mensaje sin texto ni imagen"}
     
     # Normalizar número de teléfono (asume Colombia como principal)
     raw_phone = phone.replace("+", "")
@@ -1267,14 +1326,13 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
     if is_supervisor_cmd and supervisor:
         result = handle_supervisor_message(supervisor, text, db)
     elif conductor:
-        result = handle_conductor_message(conductor, text, db)
+        result = handle_conductor_message(conductor, text, db, media_id=media_id)
     elif usuario:
-        # Si no es un comando de supervisor pero está registrado como empleado, le iniciamos el flujo de empleado (pedir viaje)
         result = handle_user_session(usuario, text, db)
     elif supervisor:
-        result = {"action": "send_message", "phone": phone, "message": "Eres supervisor pero no estás registrado como empleado. Pide que te agreguen como Empleado para poder pedir transporte."}
+        result = handle_supervisor_session(supervisor, text, db)
     else:
-        result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema."}
+        result = {"action": "send_message", "phone": phone, "message": "No estás registrado en el sistema. Contacta a tu administrador."}
 
     # Procesar resultados encolando las tareas a la API de WhatsApp Graph
     if result is None:
@@ -1301,6 +1359,242 @@ async def n8n_webhook(request: Request, background_tasks: BackgroundTasks, db: S
             )
             
     return {"status": "processed"}
+
+# ---------------------------------------------------------------------------
+# SESIÓN DE SUPERVISOR (Logística / Transporte Personal)
+# ---------------------------------------------------------------------------
+
+def handle_supervisor_session(supervisor: models.Supervisor, text: str, db: Session):
+    """
+    Maneja el flujo conversacional del supervisor por WhatsApp.
+    El supervisor puede pedir:
+      1) Servicio de transporte de materiales (logística)
+      2) Transporte personal (para él mismo)
+    """
+    # Obtener o crear sesión
+    session = db.query(models.WaSession).filter(
+        models.WaSession.whatsapp_number == supervisor.whatsapp
+    ).first()
+    if not session:
+        session = models.WaSession(
+            whatsapp_number=supervisor.whatsapp,
+            paso_actual="INICIO",
+            datos_temporales={}
+        )
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+    paso = session.paso_actual
+    phone = supervisor.whatsapp
+    text_up = text.upper().strip()
+
+    # Comando global de cancelación
+    if text_up in ["CANCELAR", "SALIR", "MENU"]:
+        session.paso_actual = "INICIO"
+        session.datos_temporales = {}
+        flag_modified(session, "datos_temporales")
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "Proceso cancelado. Escribe *Hola* para ver el menú de opciones."}
+
+    # ── INICIO: mostrar menú ──────────────────────────────────────────────
+    if paso == "INICIO":
+        session.paso_actual = "SUP_MENU"
+        db.commit()
+        return {"action": "send_message", "phone": phone, "message": (
+            f"Hola {supervisor.nombre} 👋 ¿Qué tipo de servicio necesitas?\n\n"
+            f"1️⃣  Transporte de materiales / Logística\n"
+            f"2️⃣  Transporte personal (para mí)\n\n"
+            f"Responde con el número de tu opción."
+        )}
+
+    # ── MENÚ: elegir tipo ─────────────────────────────────────────────────
+    elif paso == "SUP_MENU":
+        if text_up in ["1", "LOGISTICA", "LOGÍSTICA", "MATERIALES"]:
+            session.paso_actual = "SUP_LOG_MATERIAL"
+            db.commit()
+            return {"action": "send_message", "phone": phone,
+                    "message": "📦 *Transporte de Materiales*\n\nPor favor describe el material que se va a transportar:"}
+
+        elif text_up in ["2", "PERSONAL", "TRANSPORTE PERSONAL"]:
+            session.paso_actual = "SUP_PER_ORIGEN"
+            db.commit()
+            return {"action": "send_message", "phone": phone,
+                    "message": "🚗 *Transporte Personal*\n\nPor favor dime tu dirección de *recogida*:"}
+        else:
+            return {"action": "send_message", "phone": phone,
+                    "message": "No entendí. Responde *1* para logística o *2* para transporte personal."}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # FLUJO LOGÍSTICA
+    # ══════════════════════════════════════════════════════════════════════
+    elif paso == "SUP_LOG_MATERIAL":
+        datos = dict(session.datos_temporales or {})
+        datos["descripcion_material"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_LOG_ORIGEN"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "📍 ¿Cuál es la dirección de *recogida* del material?"}
+
+    elif paso == "SUP_LOG_ORIGEN":
+        datos = dict(session.datos_temporales or {})
+        datos["origen"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_LOG_DESTINO"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "🏁 ¿Cuál es la dirección de *entrega* del material?"}
+
+    elif paso == "SUP_LOG_DESTINO":
+        datos = dict(session.datos_temporales or {})
+        datos["destino"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_LOG_HORA"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "⏰ ¿Cuál es la *fecha y hora* del servicio? (Ej: 'Hoy a las 3pm' o '30 Abr 10:00')"}
+
+    elif paso == "SUP_LOG_HORA":
+        datos = dict(session.datos_temporales or {})
+        datos["hora"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_LOG_CONFIRMAR"
+        db.commit()
+        return {"action": "send_message", "phone": phone, "message": (
+            f"Revisa el resumen del servicio de logística:\n\n"
+            f"📦 *Material:* {datos.get('descripcion_material')}\n"
+            f"📍 *Recogida:* {datos.get('origen')}\n"
+            f"🏁 *Entrega:* {datos.get('destino')}\n"
+            f"⏰ *Fecha/Hora:* {datos.get('hora')}\n\n"
+            f"Responde *SI* para confirmar o *CANCELAR*."
+        )}
+
+    elif paso == "SUP_LOG_CONFIRMAR":
+        if text_up not in ["SI", "SÍ", "S", "OK", "CONFIRMAR"]:
+            return {"action": "send_message", "phone": phone,
+                    "message": "Responde *SI* para confirmar o *CANCELAR* para cancelar."}
+        datos = dict(session.datos_temporales or {})
+        # Crear el servicio de logística (ya autorizado por el supervisor)
+        nuevo_servicio = models.Servicio(
+            usuario_id=None,
+            empresa_id=supervisor.empresa_id,
+            supervisor_id=supervisor.id,
+            direccion_origen=datos.get("origen", "Por confirmar"),
+            direccion_destino=datos.get("destino", "Por confirmar"),
+            hora_programada=datos.get("hora", "Por confirmar"),
+            observaciones=f"[Solicitado por supervisor: {supervisor.nombre}]",
+            estado="AUTORIZADO",  # Auto-autorizado por el supervisor
+            tipo_servicio="LOGISTICA",
+            descripcion_material=datos.get("descripcion_material", ""),
+            fotos_inicio=[],
+            fotos_fin=[],
+        )
+        db.add(nuevo_servicio)
+        db.commit()
+        db.refresh(nuevo_servicio)
+        # Reset sesión
+        session.paso_actual = "INICIO"
+        session.datos_temporales = {}
+        flag_modified(session, "datos_temporales")
+        db.commit()
+        logger.info(f"Servicio LOGISTICA #{nuevo_servicio.id} creado por supervisor {supervisor.nombre}")
+        return {"action": "send_message", "phone": phone, "message": (
+            f"✅ *Servicio de logística creado exitosamente*\n\n"
+            f"🆔 *ID del servicio:* #{nuevo_servicio.id}\n"
+            f"📦 Material: {datos.get('descripcion_material')}\n"
+            f"📍 De: {datos.get('origen')}\n"
+            f"🏁 A: {datos.get('destino')}\n\n"
+            f"El administrador asignará un conductor pronto. "
+            f"El conductor usará el ID *#{nuevo_servicio.id}* para iniciar el servicio."
+        )}
+
+    # ══════════════════════════════════════════════════════════════════════
+    # FLUJO TRANSPORTE PERSONAL (para el supervisor)
+    # ══════════════════════════════════════════════════════════════════════
+    elif paso == "SUP_PER_ORIGEN":
+        datos = dict(session.datos_temporales or {})
+        datos["origen"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_PER_DESTINO"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "🏁 ¿Cuál es tu dirección de *destino*?"}
+
+    elif paso == "SUP_PER_DESTINO":
+        datos = dict(session.datos_temporales or {})
+        datos["destino"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_PER_HORA"
+        db.commit()
+        return {"action": "send_message", "phone": phone,
+                "message": "⏰ ¿Cuál es la *fecha y hora* del servicio?"}
+
+    elif paso == "SUP_PER_HORA":
+        datos = dict(session.datos_temporales or {})
+        datos["hora"] = text
+        session.datos_temporales = datos
+        flag_modified(session, "datos_temporales")
+        session.paso_actual = "SUP_PER_CONFIRMAR"
+        db.commit()
+        return {"action": "send_message", "phone": phone, "message": (
+            f"Resumen de tu solicitud de transporte:\n\n"
+            f"📍 *Recogida:* {datos.get('origen')}\n"
+            f"🏁 *Destino:* {datos.get('destino')}\n"
+            f"⏰ *Fecha/Hora:* {datos.get('hora')}\n\n"
+            f"Responde *SI* para confirmar o *CANCELAR*."
+        )}
+
+    elif paso == "SUP_PER_CONFIRMAR":
+        if text_up not in ["SI", "SÍ", "S", "OK", "CONFIRMAR"]:
+            return {"action": "send_message", "phone": phone,
+                    "message": "Responde *SI* para confirmar o *CANCELAR* para cancelar."}
+        datos = dict(session.datos_temporales or {})
+        codigo = f"{secrets.randbelow(1000000):06d}"
+        nuevo_servicio = models.Servicio(
+            usuario_id=None,
+            empresa_id=supervisor.empresa_id,
+            supervisor_id=supervisor.id,
+            direccion_origen=datos.get("origen", "Por confirmar"),
+            direccion_destino=datos.get("destino", "Por confirmar"),
+            hora_programada=datos.get("hora", "Por confirmar"),
+            observaciones=f"[Solicitado por supervisor: {supervisor.nombre}]",
+            estado="AUTORIZADO",  # Auto-autorizado
+            tipo_servicio="PASAJERO",
+            codigo_verificacion=codigo,
+        )
+        db.add(nuevo_servicio)
+        db.commit()
+        db.refresh(nuevo_servicio)
+        session.paso_actual = "INICIO"
+        session.datos_temporales = {}
+        flag_modified(session, "datos_temporales")
+        db.commit()
+        logger.info(f"Servicio PERSONAL #{nuevo_servicio.id} creado por supervisor {supervisor.nombre}")
+        return {"action": "send_message", "phone": phone, "message": (
+            f"✅ *Transporte personal solicitado*\n\n"
+            f"🆔 ID: #{nuevo_servicio.id}\n"
+            f"📍 Recogida: {datos.get('origen')}\n"
+            f"🏁 Destino: {datos.get('destino')}\n\n"
+            f"🔑 *Código de verificación: {codigo}*\n"
+            f"Muéstraselo al conductor cuando llegue."
+        )}
+
+    # Estado desconocido → reset
+    session.paso_actual = "INICIO"
+    session.datos_temporales = {}
+    flag_modified(session, "datos_temporales")
+    db.commit()
+    return {"action": "send_message", "phone": phone,
+            "message": "Escribe *Hola* para ver el menú de opciones."}
+
 
 def handle_user_session(usuario: models.Usuario, text: str, db: Session):
     session = db.query(models.WaSession).filter(models.WaSession.whatsapp_number == usuario.whatsapp).first()
@@ -1688,7 +1982,8 @@ def handle_supervisor_message(supervisor: models.Supervisor, text: str, db: Sess
         
     return {"action": "send_message", "phone": supervisor.whatsapp, "message": "Comando de supervisor no reconocido. (Usa: AUTORIZADOR [num] o RECHAZAR [num])"}
     
-def handle_conductor_message(conductor: models.Conductor, text: str, db: Session):
+def handle_conductor_message(conductor: models.Conductor, text: str, db: Session, media_id: str = None):
+
     session = db.query(models.WaSession).filter(models.WaSession.whatsapp_number == conductor.whatsapp).first()
     if not session:
         session = models.WaSession(whatsapp_number=conductor.whatsapp, paso_actual="INICIO", datos_temporales={})
@@ -1731,7 +2026,171 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
             except (ValueError, IndexError):
                 return {"action": "send_message", "phone": conductor.whatsapp, "message": "Formato incorrecto. Usa: SIN PASAJERO [número de servicio]"}
 
+    # ── MANEJO DE IMÁGENES (Logística) ──────────────────────────────────────
+    if media_id:
+        if paso == "LOG_FOTOS_INICIO":
+            datos = dict(session.datos_temporales or {})
+            url = upload_whatsapp_image_to_cloudinary(media_id)
+            if url:
+                fotos = datos.get("fotos_inicio", [])
+                fotos.append(url)
+                datos["fotos_inicio"] = fotos
+                session.datos_temporales = datos
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                n = len(fotos)
+                return {"action": "send_message", "phone": conductor.whatsapp,
+                        "message": f"📸 Foto {n} de recogida guardada ✅\nPuedes enviar más fotos o escribe *LISTO* cuando termines."}
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": "⚠️ No se pudo guardar la foto. Por favor intenta de nuevo."}
+
+        elif paso == "LOG_FOTOS_FIN":
+            datos = dict(session.datos_temporales or {})
+            url = upload_whatsapp_image_to_cloudinary(media_id)
+            if url:
+                fotos = datos.get("fotos_fin", [])
+                fotos.append(url)
+                datos["fotos_fin"] = fotos
+                session.datos_temporales = datos
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                n = len(fotos)
+                return {"action": "send_message", "phone": conductor.whatsapp,
+                        "message": f"📸 Foto {n} de entrega guardada ✅\nPuedes enviar más fotos o escribe *ENTREGADO* para completar el servicio."}
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": "⚠️ No se pudo guardar la foto. Por favor intenta de nuevo."}
+
+        return {"action": "send_message", "phone": conductor.whatsapp,
+                "message": "Las fotos solo se aceptan durante el proceso de logística. Escribe *Hola* para ver tus servicios."}
+
+    # ── COMANDO INICIAR (Logística por ID) ──────────────────────────────────
+    if text_up.startswith("INICIAR"):
+        parts = text_up.split()
+        sid_str = ""
+        if len(parts) >= 2:
+            sid_str = parts[1].replace("#", "").replace("SOL-", "")
+        if not sid_str:
+            sid_str = text_clean
+        try:
+            sid = int(sid_str)
+            servicio = db.query(models.Servicio).filter(
+                models.Servicio.id == sid,
+                models.Servicio.conductor_id == conductor.id,
+                models.Servicio.estado == "ASIGNADO",
+                models.Servicio.tipo_servicio == "LOGISTICA"
+            ).first()
+            if servicio:
+                servicio.hora_inicio = datetime.now(COLOMBIA_TZ)
+                session.paso_actual = "LOG_FOTOS_INICIO"
+                session.datos_temporales = {"servicio_id": servicio.id, "fotos_inicio": []}
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                return {"action": "send_message", "phone": conductor.whatsapp, "message": (
+                    f"📦 Servicio de logística *#{servicio.id}* iniciado.\n\n"
+                    f"Material: {getattr(servicio, 'descripcion_material', 'N/A')}\n"
+                    f"📍 Recogida: {servicio.direccion_origen}\n"
+                    f"🏁 Entrega: {servicio.direccion_destino}\n\n"
+                    f"Por favor envía las *fotos del material* que estás recogiendo. "
+                    f"Cuando termines escribe *LISTO*."
+                )}
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": f"No encontré el servicio de logística #{sid_str} asignado a ti. Verifica el ID."}
+        except (ValueError, TypeError):
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": "Usa el formato: *INICIAR #123* (con el ID del servicio)"}
+
+    # ── COMANDO LISTO (fin de fotos de recogida) ────────────────────────────
+    if text_up == "LISTO" and paso == "LOG_FOTOS_INICIO":
+        datos = dict(session.datos_temporales or {})
+        servicio_id = datos.get("servicio_id")
+        fotos = datos.get("fotos_inicio", [])
+        if not fotos:
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": "⚠️ Debes enviar al menos una foto de recogida antes de continuar."}
+        servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+        if servicio:
+            servicio.estado = "EN_CURSO"
+            servicio.fotos_inicio = fotos
+            flag_modified(servicio, "fotos_inicio")
+            session.paso_actual = "LOG_EN_RUTA"
+            session.datos_temporales = {"servicio_id": servicio_id}
+            flag_modified(session, "datos_temporales")
+            db.commit()
+        return {"action": "send_message", "phone": conductor.whatsapp, "message": (
+            f"✅ *{len(fotos)} foto(s) de recogida guardadas.*\n\n"
+            f"Dirígete al destino de entrega.\n"
+            f"Cuando llegues y entregues el material, escribe *ENTREGAR #{servicio_id}* y envía las fotos de entrega."
+        )}
+
+    # ── COMANDO ENTREGAR (inicio fase entrega) ───────────────────────────────
+    if text_up.startswith("ENTREGAR"):
+        parts = text_up.split()
+        sid_str = parts[1].replace("#", "") if len(parts) >= 2 else ""
+        try:
+            sid = int(sid_str)
+            servicio = db.query(models.Servicio).filter(
+                models.Servicio.id == sid,
+                models.Servicio.conductor_id == conductor.id,
+                models.Servicio.estado == "EN_CURSO",
+                models.Servicio.tipo_servicio == "LOGISTICA"
+            ).first()
+            if servicio:
+                session.paso_actual = "LOG_FOTOS_FIN"
+                session.datos_temporales = {"servicio_id": sid, "fotos_fin": []}
+                flag_modified(session, "datos_temporales")
+                db.commit()
+                return {"action": "send_message", "phone": conductor.whatsapp,
+                        "message": f"📦 Registrando entrega del servicio *#{sid}*.\n\nEnvía las *fotos del material entregado*. Cuando termines escribe *ENTREGADO*."}
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": f"No encontré el servicio de logística #{sid_str} en curso asignado a ti."}
+        except (ValueError, TypeError):
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": "Usa el formato: *ENTREGAR #123*"}
+
+    # ── COMANDO ENTREGADO (completar logística) ──────────────────────────────
+    if text_up == "ENTREGADO" and paso == "LOG_FOTOS_FIN":
+        datos = dict(session.datos_temporales or {})
+        servicio_id = datos.get("servicio_id")
+        fotos_fin = datos.get("fotos_fin", [])
+        if not fotos_fin:
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": "⚠️ Debes enviar al menos una foto de entrega antes de completar."}
+        servicio = db.query(models.Servicio).filter(models.Servicio.id == servicio_id).first()
+        if servicio:
+            servicio.estado = "COMPLETADO"
+            servicio.hora_fin = datetime.now(COLOMBIA_TZ)
+            servicio.fotos_fin = fotos_fin
+            flag_modified(servicio, "fotos_fin")
+            session.paso_actual = "INICIO"
+            session.datos_temporales = {}
+            flag_modified(session, "datos_temporales")
+            db.commit()
+            # Notificar al supervisor
+            supervisor = db.query(models.Supervisor).filter(models.Supervisor.id == servicio.supervisor_id).first()
+            msgs = [{"action": "send_message", "phone": conductor.whatsapp,
+                     "message": f"✅ *Servicio #{servicio_id} COMPLETADO* ¡Buen trabajo!\n📸 {len(servicio.fotos_inicio or [])} fotos de recogida + {len(fotos_fin)} fotos de entrega registradas."}]
+            if supervisor:
+                msgs.append({"action": "send_message", "phone": supervisor.whatsapp,
+                              "message": f"📦 El servicio de logística *#{servicio_id}* fue completado por el conductor {conductor.nombre}.\nFotos disponibles en el dashboard."})
+            return msgs
+        return {"action": "send_message", "phone": conductor.whatsapp,
+                "message": "No se encontró el servicio. Por favor contacta al administrador."}
+
+    # Si está en LOG_EN_RUTA y escribe algo diferente
+    if paso in ("LOG_FOTOS_INICIO", "LOG_EN_RUTA", "LOG_FOTOS_FIN"):
+        servicio_id = session.datos_temporales.get("servicio_id")
+        if paso == "LOG_FOTOS_INICIO":
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": f"Esperando fotos de recogida del servicio *#{servicio_id}*.\nEnvía una imagen o escribe *LISTO* si ya terminaste."}
+        if paso == "LOG_EN_RUTA":
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": f"Servicio *#{servicio_id}* en ruta. Cuando entregues el material escribe *ENTREGAR #{servicio_id}*."}
+        if paso == "LOG_FOTOS_FIN":
+            return {"action": "send_message", "phone": conductor.whatsapp,
+                    "message": f"Esperando fotos de entrega del servicio *#{servicio_id}*.\nEnvía una imagen o escribe *ENTREGADO* si ya terminaste."}
+
     if paso == "INICIO":
+
         # Flujo de INICIAR SERVICIO por código
         if len(text_clean) == 6:
             # Buscar el servicio específico que coincida con el código
@@ -1775,9 +2234,20 @@ def handle_conductor_message(conductor: models.Conductor, text: str, db: Session
             count = len(servicios_asignados)
             msg = f"Hola 👋, tienes {count} {'servicios asignados' if count > 1 else 'servicio asignado'}:\n\n"
             for s in servicios_asignados:
-                msg += f"• *#{s.id}*: {s.direccion_origen} → {s.direccion_destino}\n"
-            msg += "\nPor favor ingresa el *código de verificación de 6 dígitos* del servicio que vas a iniciar."
-            msg += "\n\nSi llegaste y el *pasajero no aparece*, puedes iniciar el servicio reportando la novedad escribiendo:\n*SIN PASAJERO #{servicios_asignados[0].id}*" if count == 1 else "\n\nSi llegaste y el *pasajero no aparece*, puedes iniciar el servicio reportando la novedad escribiendo:\n*SIN PASAJERO [número]*"
+                tipo = getattr(s, "tipo_servicio", "PASAJERO") or "PASAJERO"
+                icono = "📦" if tipo == "LOGISTICA" else "🚗"
+                msg += f"{icono} *#{s.id}* [{tipo}]: {s.direccion_origen} → {s.direccion_destino}\n"
+            # Instrucción según si hay logística o pasajero
+            tiene_logistica = any((getattr(s, "tipo_servicio", "PASAJERO") or "PASAJERO") == "LOGISTICA" for s in servicios_asignados)
+            tiene_pasajero = any((getattr(s, "tipo_servicio", "PASAJERO") or "PASAJERO") == "PASAJERO" for s in servicios_asignados)
+            if tiene_logistica:
+                msg += "\n📦 Para iniciar un servicio de *logística* escribe: *INICIAR #[ID]*"
+            if tiene_pasajero:
+                msg += "\n🚗 Para iniciar un servicio de *pasajero* ingresa el *código de verificación de 6 dígitos*."
+                if count == 1:
+                    msg += f"\n\nSi llegaste y el *pasajero no aparece* escribe: *SIN PASAJERO #{servicios_asignados[0].id}*"
+                else:
+                    msg += "\n\nSi el *pasajero no aparece* escribe: *SIN PASAJERO [número]*"
             return {"action": "send_message", "phone": conductor.whatsapp, "message": msg}
         
         return {"action": "send_message", "phone": conductor.whatsapp, "message": "Hola, no tienes servicios asignados pendientes por iniciar en este momento."}

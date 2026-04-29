@@ -10,3 +10,4 @@ bcrypt==3.2.2
 python-jose[cryptography]==3.5.0
 python-multipart==0.0.20
 requests==2.31.0
+cloudinary==1.41.0

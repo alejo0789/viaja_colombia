@@ -105,7 +105,13 @@ class Servicio(Base):
     
     es_retorno = Column(Boolean, default=False)
     retorno_de_id = Column(Integer, ForeignKey("services.id"), nullable=True)
-    
+
+    # --- Logística / Transporte de Materiales ---
+    tipo_servicio = Column(String, default="PASAJERO")  # PASAJERO, LOGISTICA
+    descripcion_material = Column(String, nullable=True)
+    fotos_inicio = Column(JSON, nullable=True)   # Lista de URLs Cloudinary al recoger
+    fotos_fin = Column(JSON, nullable=True)       # Lista de URLs Cloudinary al entregar
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
