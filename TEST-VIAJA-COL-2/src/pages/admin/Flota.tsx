@@ -18,13 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import StatusBadge from '@/components/admin/StatusBadge';
 import { adminAPI } from '@/services/api';
 
 export default function Flota() {
   const [vehiculos, setVehiculos] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     placa: '',
@@ -72,37 +73,71 @@ export default function Flota() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddVehicle = async () => {
+  const handleSaveVehicle = async () => {
     setIsLoading(true);
     try {
-      await adminAPI.createVehiculo(formData);
+      if (editingVehicle) {
+        await adminAPI.updateVehiculo(editingVehicle.id, formData);
+      } else {
+        await adminAPI.createVehiculo(formData);
+      }
       await fetchVehiculos();
       setIsDialogOpen(false);
-      setFormData({
-        placa: '',
-        marca: '',
-        modelo: '',
-        año: new Date().getFullYear(),
-        capacidad: 5,
-        estado: 'activo',
-        tipo_servicio: 'Estándar',
-        tipo_vehiculo: '',
-        ciudad: '',
-        propietario: '',
-        cedula_propietario: '',
-        fecha_matricula: '',
-        soat_vencimiento: '',
-        tecnomecanica_vencimiento: '',
-        polizas_vencimiento: '',
-        todo_riesgo_vencimiento: '',
-        tarjeta_operacion_vencimiento: '',
-        empresa_afiliada: '',
-      });
+      resetForm();
     } catch (error: any) {
-      alert(error?.message || 'Error al registrar el vehículo');
+      alert(error?.message || 'Error al guardar el vehículo');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setEditingVehicle(null);
+    setFormData({
+      placa: '',
+      marca: '',
+      modelo: '',
+      año: new Date().getFullYear(),
+      capacidad: 5,
+      estado: 'activo',
+      tipo_servicio: 'Estándar',
+      tipo_vehiculo: '',
+      ciudad: '',
+      propietario: '',
+      cedula_propietario: '',
+      fecha_matricula: '',
+      soat_vencimiento: '',
+      tecnomecanica_vencimiento: '',
+      polizas_vencimiento: '',
+      todo_riesgo_vencimiento: '',
+      tarjeta_operacion_vencimiento: '',
+      empresa_afiliada: '',
+    });
+  };
+
+  const openEditModal = (v: any) => {
+    setEditingVehicle(v);
+    setFormData({
+      placa: v.placa || '',
+      marca: v.marca || '',
+      modelo: v.modelo || '',
+      año: v.anio || new Date().getFullYear(),
+      capacidad: v.capacidad || 5,
+      estado: v.estado || 'activo',
+      tipo_servicio: v.tipo_servicio || 'Estándar',
+      tipo_vehiculo: v.tipo_vehiculo || '',
+      ciudad: v.ciudad || '',
+      propietario: v.propietario || '',
+      cedula_propietario: v.cedula_propietario || '',
+      fecha_matricula: v.fecha_matricula || '',
+      soat_vencimiento: v.soat_vencimiento || '',
+      tecnomecanica_vencimiento: v.tecnomecanica_vencimiento || '',
+      polizas_vencimiento: v.polizas_vencimiento || '',
+      todo_riesgo_vencimiento: v.todo_riesgo_vencimiento || '',
+      tarjeta_operacion_vencimiento: v.tarjeta_operacion_vencimiento || '',
+      empresa_afiliada: v.empresa_afiliada || '',
+    });
+    setIsDialogOpen(true);
   };
 
   const handleDeleteVehicle = async (id: number, placa: string) => {
@@ -137,18 +172,21 @@ export default function Flota() {
             Administra el parque vehicular — {vehiculos.length} vehículo{vehiculos.length !== 1 ? 's' : ''} registrado{vehiculos.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}>
           <DialogTrigger asChild>
-            <Button className="bg-[#F97316] hover:bg-orange-600">
+            <Button className="bg-[#F97316] hover:bg-orange-600" onClick={() => resetForm()}>
               <Plus size={18} className="mr-2" />
               Nuevo Vehículo
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Registrar Nuevo Vehículo</DialogTitle>
+              <DialogTitle>{editingVehicle ? 'Editar Vehículo' : 'Registrar Nuevo Vehículo'}</DialogTitle>
               <DialogDescription>
-                Completa el formulario para agregar un vehículo a la flota
+                {editingVehicle ? 'Modifica la información del vehículo' : 'Completa el formulario para agregar un vehículo a la flota'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
@@ -338,10 +376,10 @@ export default function Flota() {
               </Button>
               <Button
                 className="bg-[#F97316] hover:bg-orange-600"
-                onClick={handleAddVehicle}
+                onClick={handleSaveVehicle}
                 disabled={!formData.placa || isLoading}
               >
-                {isLoading ? 'Guardando...' : 'Agregar'}
+                {isLoading ? 'Guardando...' : editingVehicle ? 'Guardar Cambios' : 'Agregar'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -400,6 +438,14 @@ export default function Flota() {
                    <p className="text-xs font-semibold text-gray-600 truncate">{vehiculo.empresa_afiliada || '—'}</p>
                 </div>
                 <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEditModal(vehiculo)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <Pencil size={14} className="mr-1" /> Editar
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
