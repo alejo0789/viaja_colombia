@@ -162,6 +162,26 @@ export default function Flota() {
     }
   };
 
+  const formatDateSpanish = (dateStr: string) => {
+    if (!dateStr || dateStr === 'N/A') return dateStr || '—';
+    try {
+      // Input date is YYYY-MM-DD from type="date"
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1]) - 1;
+      const day = parts[2];
+      
+      const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      const month = months[monthIdx];
+      
+      return `${day}-${month}-${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="p-8 space-y-6">
       {/* Header */}
@@ -280,18 +300,18 @@ export default function Flota() {
                   <label className="text-xs font-medium text-gray-500 uppercase">Fecha Matrícula</label>
                   <Input
                     name="fecha_matricula"
+                    type="date"
                     value={formData.fecha_matricula}
                     onChange={handleInputChange}
-                    placeholder="Ej: 3/01/2026"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Vence SOAT</label>
                   <Input
                     name="soat_vencimiento"
+                    type="date"
                     value={formData.soat_vencimiento}
                     onChange={handleInputChange}
-                    placeholder="Ej: 30-dic-2026"
                   />
                 </div>
               </div>
@@ -301,18 +321,18 @@ export default function Flota() {
                   <label className="text-xs font-medium text-gray-500 uppercase">Vence Tecnomecánica</label>
                   <Input
                     name="tecnomecanica_vencimiento"
+                    type="date"
                     value={formData.tecnomecanica_vencimiento}
                     onChange={handleInputChange}
-                    placeholder="Ej: 23-nov-2028"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Vence Tarjeta Op.</label>
                   <Input
                     name="tarjeta_operacion_vencimiento"
+                    type="date"
                     value={formData.tarjeta_operacion_vencimiento}
                     onChange={handleInputChange}
-                    placeholder="Ej: 08-ene-2028"
                   />
                 </div>
               </div>
@@ -322,18 +342,18 @@ export default function Flota() {
                   <label className="text-xs font-medium text-gray-500 uppercase">Vence Pólizas</label>
                   <Input
                     name="polizas_vencimiento"
+                    type="date"
                     value={formData.polizas_vencimiento}
                     onChange={handleInputChange}
-                    placeholder="Ej: 26-feb-2027"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase">Vence Todo Riesgo</label>
                   <Input
                     name="todo_riesgo_vencimiento"
+                    type="date"
                     value={formData.todo_riesgo_vencimiento}
                     onChange={handleInputChange}
-                    placeholder="Ej: 20-abr-2027"
                   />
                 </div>
               </div>
@@ -423,13 +443,13 @@ export default function Flota() {
                   <div>
                     <p className="text-gray-400 uppercase font-medium">SOAT</p>
                     <p className={`font-semibold ${vehiculo.soat_vencimiento && vehiculo.soat_vencimiento !== 'N/A' ? 'text-green-600' : 'text-gray-700'}`}>
-                      {vehiculo.soat_vencimiento || '—'}
+                      {formatDateSpanish(vehiculo.soat_vencimiento)}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-400 uppercase font-medium">Tarjeta Op.</p>
                     <p className={`font-semibold ${vehiculo.tarjeta_operacion_vencimiento && vehiculo.tarjeta_operacion_vencimiento !== 'N/A' ? 'text-green-600' : 'text-gray-700'}`}>
-                      {vehiculo.tarjeta_operacion_vencimiento || '—'}
+                      {formatDateSpanish(vehiculo.tarjeta_operacion_vencimiento)}
                     </p>
                   </div>
                 </div>
