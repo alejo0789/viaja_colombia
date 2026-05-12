@@ -24,9 +24,11 @@ import { adminAPI } from '@/services/api';
 
 export default function Flota() {
   const [vehiculos, setVehiculos] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [formData, setFormData] = useState({
     placa: '',
     marca: '',
@@ -49,11 +51,14 @@ export default function Flota() {
   });
 
   const fetchVehiculos = async () => {
+    setIsFetching(true);
     try {
       const data = await adminAPI.getVehiculos();
       setVehiculos(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching vehiculos:', error);
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -115,6 +120,39 @@ export default function Flota() {
     });
   };
 
+  const formatToInputDate = (dateStr: string) => {
+    if (!dateStr || dateStr === 'N/A' || dateStr === 'X' || dateStr === 'NO' || dateStr === 'SI') return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+    try {
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
+          const year = parts[2];
+          if (year.length === 4) return `${year}-${month}-${day}`;
+          return `20${year}-${month}-${day}`;
+        }
+      }
+
+      if (dateStr.includes('-') && dateStr.includes('/')) {
+        const months: { [key: string]: string } = {
+          'ene': '01', 'feb': '02', 'mar': '03', 'abr': '04', 'may': '05', 'jun': '06',
+          'jul': '07', 'ago': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dic': '12'
+        };
+        const mainParts = dateStr.split('/'); 
+        const dateParts = mainParts[0].split('-'); 
+        const day = dateParts[0].padStart(2, '0');
+        const monthName = dateParts[1].toLowerCase().substring(0, 3);
+        const month = months[monthName];
+        const year = mainParts[1];
+        if (day && month && year) return `${year}-${month}-${day}`;
+      }
+    } catch (e) {}
+    return '';
+  };
+
   const openEditModal = (v: any) => {
     setEditingVehicle(v);
     setFormData({
@@ -129,12 +167,12 @@ export default function Flota() {
       ciudad: v.ciudad || '',
       propietario: v.propietario || '',
       cedula_propietario: v.cedula_propietario || '',
-      fecha_matricula: v.fecha_matricula || '',
-      soat_vencimiento: v.soat_vencimiento || '',
-      tecnomecanica_vencimiento: v.tecnomecanica_vencimiento || '',
-      polizas_vencimiento: v.polizas_vencimiento || '',
-      todo_riesgo_vencimiento: v.todo_riesgo_vencimiento || '',
-      tarjeta_operacion_vencimiento: v.tarjeta_operacion_vencimiento || '',
+      fecha_matricula: formatToInputDate(v.fecha_matricula),
+      soat_vencimiento: formatToInputDate(v.soat_vencimiento),
+      tecnomecanica_vencimiento: formatToInputDate(v.tecnomecanica_vencimiento),
+      polizas_vencimiento: formatToInputDate(v.polizas_vencimiento),
+      todo_riesgo_vencimiento: formatToInputDate(v.todo_riesgo_vencimiento),
+      tarjeta_operacion_vencimiento: formatToInputDate(v.tarjeta_operacion_vencimiento),
       empresa_afiliada: v.empresa_afiliada || '',
     });
     setIsDialogOpen(true);
@@ -182,33 +220,52 @@ export default function Flota() {
     }
   };
 
+  const filteredVehiculos = vehiculos.filter((v) => {
+    const term = searchQuery.toLowerCase();
+    return (
+      v.placa?.toLowerCase().includes(term) ||
+      v.marca?.toLowerCase().includes(term) ||
+      v.empresa_afiliada?.toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header y Buscador */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold text-[#1B3A5C]">Gestión de Flota</h1>
           <p className="text-gray-600 mt-2">
             Administra el parque vehicular — {vehiculos.length} vehículo{vehiculos.length !== 1 ? 's' : ''} registrado{vehiculos.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#F97316] hover:bg-orange-600" onClick={() => resetForm()}>
-              <Plus size={18} className="mr-2" />
-              Nuevo Vehículo
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingVehicle ? 'Editar Vehículo' : 'Registrar Nuevo Vehículo'}</DialogTitle>
-              <DialogDescription>
-                {editingVehicle ? 'Modifica la información del vehículo' : 'Completa el formulario para agregar un vehículo a la flota'}
-              </DialogDescription>
-            </DialogHeader>
+        
+        <div className="flex items-center gap-3">
+          <div className="relative w-full md:w-64">
+            <Input
+              placeholder="Buscar por placa, marca..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-4 border-gray-300 focus:ring-blue-500"
+            />
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#F97316] hover:bg-orange-600 shrink-0" onClick={() => resetForm()}>
+                <Plus size={18} className="mr-2" />
+                Nuevo Vehículo
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingVehicle ? 'Editar Vehículo' : 'Registrar Nuevo Vehículo'}</DialogTitle>
+                <DialogDescription>
+                  {editingVehicle ? 'Modifica la información del vehículo' : 'Completa el formulario para agregar un vehículo a la flota'}
+                </DialogDescription>
+              </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -405,17 +462,23 @@ export default function Flota() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
 
       {/* Grid */}
-      {vehiculos.length === 0 ? (
+      {isFetching ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-lg border border-dashed border-gray-200">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-500 font-medium">Cargando flota vehicular...</p>
+        </div>
+      ) : filteredVehiculos.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-2xl mb-2">🚗</p>
-          <p className="font-medium">No hay vehículos registrados</p>
-          <p className="text-sm mt-1">Haz clic en "Nuevo Vehículo" para agregar el primero</p>
+          <p className="font-medium">No se encontraron vehículos</p>
+          <p className="text-sm mt-1">{searchQuery ? 'Prueba con otros términos de búsqueda' : 'Haz clic en "Nuevo Vehículo" para agregar el primero'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vehiculos.map((vehiculo) => (
+          {filteredVehiculos.map((vehiculo) => (
             <Card key={vehiculo.id} className="hover:shadow-lg transition">
               <CardHeader>
                 <div className="flex items-start justify-between">

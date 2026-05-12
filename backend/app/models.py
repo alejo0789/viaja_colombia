@@ -84,8 +84,29 @@ class Conductor(Base):
     __tablename__ = "drivers"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
+    cedula = Column(String, nullable=True)
+    fecha_nacimiento = Column(String, nullable=True)
     telefono = Column(String, unique=True)
     whatsapp = Column(String, nullable=True)  # Número WhatsApp con código de país
+    
+    # Vacunas
+    vacuna_covid = Column(String, nullable=True)
+    vacuna_tetano = Column(String, nullable=True)
+    vacuna_fiebre_amarilla = Column(String, nullable=True)
+    
+    # Licencia y Exámenes
+    categoria_licencia = Column(String, nullable=True)
+    vigencia_licencia = Column(String, nullable=True)
+    examenes = Column(String, nullable=True)
+    
+    # Cursos
+    curso_primeros_auxilios = Column(String, nullable=True)
+    curso_mecanica_basica = Column(String, nullable=True)
+    curso_manejo_extintores = Column(String, nullable=True)
+    curso_manejo_defensivo_tp = Column(String, nullable=True)
+    curso_manejo_defensivo = Column(String, nullable=True)
+    curso_terreno_agreste = Column(String, nullable=True)
+    
     disponible = Column(Boolean, default=True)
     en_servicio = Column(Boolean, default=False)
     horario_disponibilidad = Column(JSON, nullable=True)

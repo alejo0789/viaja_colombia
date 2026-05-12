@@ -731,8 +731,22 @@ async def get_conductores(db: Session = Depends(get_db)):
         {
             "id": c.id,
             "nombre": c.nombre,
+            "cedula": c.cedula,
+            "fecha_nacimiento": c.fecha_nacimiento,
             "telefono": c.telefono,
             "whatsapp": c.whatsapp,
+            "vacuna_covid": c.vacuna_covid,
+            "vacuna_tetano": c.vacuna_tetano,
+            "vacuna_fiebre_amarilla": c.vacuna_fiebre_amarilla,
+            "categoria_licencia": c.categoria_licencia,
+            "vigencia_licencia": c.vigencia_licencia,
+            "examenes": c.examenes,
+            "curso_primeros_auxilios": c.curso_primeros_auxilios,
+            "curso_mecanica_basica": c.curso_mecanica_basica,
+            "curso_manejo_extintores": c.curso_manejo_extintores,
+            "curso_manejo_defensivo_tp": c.curso_manejo_defensivo_tp,
+            "curso_manejo_defensivo": c.curso_manejo_defensivo,
+            "curso_terreno_agreste": c.curso_terreno_agreste,
             "vehiculos": [
                 {"id": v.id, "placa": v.placa, "marca": v.marca, "modelo": v.modelo}
                 for v in c.vehiculos
@@ -752,8 +766,22 @@ async def create_conductor(data: dict, db: Session = Depends(get_db)):
     
     conductor = models.Conductor(
         nombre=data.get("nombre"),
+        cedula=data.get("cedula"),
+        fecha_nacimiento=data.get("fecha_nacimiento"),
         telefono=telefono,
         whatsapp=whatsapp_normalizado,
+        vacuna_covid=data.get("vacuna_covid"),
+        vacuna_tetano=data.get("vacuna_tetano"),
+        vacuna_fiebre_amarilla=data.get("vacuna_fiebre_amarilla"),
+        categoria_licencia=data.get("categoria_licencia"),
+        vigencia_licencia=data.get("vigencia_licencia"),
+        examenes=data.get("examenes"),
+        curso_primeros_auxilios=data.get("curso_primeros_auxilios"),
+        curso_mecanica_basica=data.get("curso_mecanica_basica"),
+        curso_manejo_extintores=data.get("curso_manejo_extintores"),
+        curso_manejo_defensivo_tp=data.get("curso_manejo_defensivo_tp"),
+        curso_manejo_defensivo=data.get("curso_manejo_defensivo"),
+        curso_terreno_agreste=data.get("curso_terreno_agreste"),
         disponible=True,
         en_servicio=False,
     )
