@@ -29,6 +29,7 @@ export default function Conductores() {
   const [conductores, setConductores] = useState<any[]>([]);
   const [vehiculos, setVehiculos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -218,6 +219,18 @@ export default function Conductores() {
     setIsDialogOpen(true);
   };
 
+  const filteredConductores = conductores.filter((c) => {
+    const term = searchTerm.toLowerCase();
+    const matchesPlaca = (c.vehiculos || []).some((v: any) => 
+      v.placa?.toLowerCase().includes(term)
+    );
+    return (
+      c.nombre?.toLowerCase().includes(term) ||
+      c.cedula?.toLowerCase().includes(term) ||
+      matchesPlaca
+    );
+  });
+
   const toggleDriverStatus = async (conductorId: number) => {
     try {
       await adminAPI.toggleConductorStatus(conductorId);
@@ -235,268 +248,137 @@ export default function Conductores() {
 
   return (
     <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold text-[#1B3A5C]">Gestión de Conductores</h1>
-          <p className="text-gray-600 mt-2">Administra a los conductores y sus vehículos</p>
+          <p className="text-gray-600 mt-2">Administra el personal operativo y sus asignaciones de vehículos</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            setEditingDriver(null);
-            setFormData({
-              nombre: '',
-              cedula: '',
-              fecha_nacimiento: '',
-              telefono: '',
-              vacuna_covid: '',
-              vacuna_tetano: '',
-              vacuna_fiebre_amarilla: '',
-              categoria_licencia: '',
-              vigencia_licencia: '',
-              examenes: '',
-              curso_primeros_auxilios: '',
-              curso_mecanica_basica: '',
-              curso_manejo_extintores: '',
-              curso_manejo_defensivo_tp: '',
-              curso_manejo_defensivo: '',
-              curso_terreno_agreste: '',
-              vehiculos_ids: []
-            });
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#F97316] hover:bg-orange-600">
-              <Plus size={18} className="mr-2" />
-              Nuevo Conductor
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>{editingDriver ? 'Editar Conductor' : 'Agregar Nuevo Conductor'}</DialogTitle>
-              <DialogDescription>
-                Completa los datos y selecciona los vehículos asignados al conductor.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Nombre Completo</label>
-                  <Input
-                    name="nombre"
-                    value={formData.nombre}
-                    onChange={handleInputChange}
-                    placeholder="Ej: Carlos Rodríguez"
-                  />
+        <div className="flex items-center gap-3">
+          <div className="relative w-full md:w-64">
+            <Input
+              placeholder="Buscar por nombre, CC o placa..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-4 border-gray-300 focus:ring-blue-500"
+            />
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingDriver(null);
+              setFormData({
+                nombre: '',
+                cedula: '',
+                fecha_nacimiento: '',
+                telefono: '',
+                vacuna_covid: '',
+                vacuna_tetano: '',
+                vacuna_fiebre_amarilla: '',
+                categoria_licencia: '',
+                vigencia_licencia: '',
+                examenes: '',
+                curso_primeros_auxilios: '',
+                curso_mecanica_basica: '',
+                curso_manejo_extintores: '',
+                curso_manejo_defensivo_tp: '',
+                curso_manejo_defensivo: '',
+                curso_terreno_agreste: '',
+                vehiculos_ids: []
+              });
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#F97316] hover:bg-orange-600" onClick={() => { setEditingDriver(null); }}>
+                <Plus size={18} className="mr-2" />
+                Nuevo Conductor
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>{editingDriver ? 'Editar Conductor' : 'Agregar Nuevo Conductor'}</DialogTitle>
+                <DialogDescription>
+                  Completa los datos y selecciona los vehículos asignados al conductor.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Nombre Completo</label>
+                    <Input name="nombre" value={formData.nombre} onChange={handleInputChange} placeholder="Ej: Carlos Rodríguez" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">C.C / Identificación</label>
+                    <Input name="cedula" value={formData.cedula} onChange={handleInputChange} placeholder="12345678" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Fecha Nacimiento</label>
+                    <Input name="fecha_nacimiento" type="date" value={formData.fecha_nacimiento} onChange={handleInputChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Teléfono / WhatsApp</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-500 bg-gray-100 border border-gray-300 rounded px-2 py-2 select-none">+57</span>
+                      <Input name="telefono" value={formData.telefono} onChange={handleInputChange} placeholder="3001234567" className="flex-1" maxLength={10} />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">C.C / Identificación</label>
-                  <Input
-                    name="cedula"
-                    value={formData.cedula}
-                    onChange={handleInputChange}
-                    placeholder="12345678"
-                  />
+                <div className="grid grid-cols-3 gap-4 border-t pt-4">
+                  <div className="col-span-3 font-semibold text-sm text-gray-800">Vacunas</div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">COVID</label><Input name="vacuna_covid" value={formData.vacuna_covid} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Tétano</label><Input name="vacuna_tetano" value={formData.vacuna_tetano} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Fiebre Amarilla</label><Input name="vacuna_fiebre_amarilla" value={formData.vacuna_fiebre_amarilla} onChange={handleInputChange} /></div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Fecha Nacimiento</label>
-                  <Input
-                    name="fecha_nacimiento"
-                    type="date"
-                    value={formData.fecha_nacimiento}
-                    onChange={handleInputChange}
-                  />
+                <div className="grid grid-cols-3 gap-4 border-t pt-4">
+                  <div className="col-span-3 font-semibold text-sm text-gray-800">Licencia y Exámenes</div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Categoría</label><Input name="categoria_licencia" value={formData.categoria_licencia} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Vigencia</label><Input name="vigencia_licencia" type="date" value={formData.vigencia_licencia} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Exámenes</label><Input name="examenes" type="date" value={formData.examenes} onChange={handleInputChange} /></div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Teléfono / WhatsApp</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-500 bg-gray-100 border border-gray-300 rounded px-2 py-2 select-none">+57</span>
-                    <Input
-                      name="telefono"
-                      value={formData.telefono}
-                      onChange={handleInputChange}
-                      placeholder="3001234567"
-                      className="flex-1"
-                      maxLength={10}
-                    />
+                <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                  <div className="col-span-2 font-semibold text-sm text-gray-800">Cursos</div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Primeros Auxilios</label><Input name="curso_primeros_auxilios" type="date" value={formData.curso_primeros_auxilios} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Mecánica Básica</label><Input name="curso_mecanica_basica" type="date" value={formData.curso_mecanica_basica} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Extintores e Incendios</label><Input name="curso_manejo_extintores" type="date" value={formData.curso_manejo_extintores} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">M. Defensivo T-P</label><Input name="curso_manejo_defensivo_tp" type="date" value={formData.curso_manejo_defensivo_tp} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">M. Defensivo</label><Input name="curso_manejo_defensivo" type="date" value={formData.curso_manejo_defensivo} onChange={handleInputChange} /></div>
+                  <div className="space-y-2"><label className="text-xs font-medium text-gray-600">Terreno Agreste</label><Input name="curso_terreno_agreste" type="date" value={formData.curso_terreno_agreste} onChange={handleInputChange} /></div>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-gray-700">Vehículos Asignados</label>
+                  <div className="border rounded-md p-4 max-h-[200px] overflow-y-auto space-y-2 bg-gray-50">
+                    {vehiculos.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">No hay vehículos registrados en la flota.</p>
+                    ) : (
+                      vehiculos.map((v) => {
+                        const isChecked = formData.vehiculos_ids.includes(Number(v.id));
+                        return (
+                          <div key={v.id} className="flex items-center space-x-3 bg-white p-2.5 rounded border shadow-sm hover:bg-blue-50/50 transition-colors cursor-pointer group" onClick={() => handleVehicleToggle(Number(v.id))}>
+                            <Checkbox id={`veh-${v.id}`} checked={isChecked} className="pointer-events-none" />
+                            <div className="flex justify-between w-full select-none">
+                              <span className="flex items-center gap-2 text-sm font-medium">
+                                <Truck size={14} className={isChecked ? "text-blue-600" : "text-gray-400"} />
+                                {v.marca} {v.modelo}
+                              </span>
+                              <span className={`font-mono text-sm font-bold ${isChecked ? "text-blue-700" : "text-gray-400"}`}>
+                                {v.placa}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-3 gap-4 border-t pt-4">
-                <div className="col-span-3 font-semibold text-sm text-gray-800">Vacunas</div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">COVID</label>
-                  <Input
-                    name="vacuna_covid"
-                    value={formData.vacuna_covid}
-                    onChange={handleInputChange}
-                    placeholder="Dosis"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Tétano</label>
-                  <Input
-                    name="vacuna_tetano"
-                    value={formData.vacuna_tetano}
-                    onChange={handleInputChange}
-                    placeholder="Dosis"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Fiebre Amarilla</label>
-                  <Input
-                    name="vacuna_fiebre_amarilla"
-                    value={formData.vacuna_fiebre_amarilla}
-                    onChange={handleInputChange}
-                    placeholder="Única"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 border-t pt-4">
-                <div className="col-span-3 font-semibold text-sm text-gray-800">Licencia y Exámenes</div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Categoría</label>
-                  <Input
-                    name="categoria_licencia"
-                    value={formData.categoria_licencia}
-                    onChange={handleInputChange}
-                    placeholder="C1, C2..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Vigencia</label>
-                  <Input
-                    name="vigencia_licencia"
-                    type="date"
-                    value={formData.vigencia_licencia}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Exámenes</label>
-                  <Input
-                    name="examenes"
-                    type="date"
-                    value={formData.examenes}
-                    onChange={handleInputChange}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                <div className="col-span-2 font-semibold text-sm text-gray-800">Cursos</div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Primeros Auxilios</label>
-                  <Input
-                    name="curso_primeros_auxilios"
-                    type="date"
-                    value={formData.curso_primeros_auxilios}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Mecánica Básica</label>
-                  <Input
-                    name="curso_mecanica_basica"
-                    type="date"
-                    value={formData.curso_mecanica_basica}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Extintores e Incendios</label>
-                  <Input
-                    name="curso_manejo_extintores"
-                    type="date"
-                    value={formData.curso_manejo_extintores}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">M. Defensivo T-P</label>
-                  <Input
-                    name="curso_manejo_defensivo_tp"
-                    type="date"
-                    value={formData.curso_manejo_defensivo_tp}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">M. Defensivo</label>
-                  <Input
-                    name="curso_manejo_defensivo"
-                    type="date"
-                    value={formData.curso_manejo_defensivo}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-600">Terreno Agreste</label>
-                  <Input
-                    name="curso_terreno_agreste"
-                    type="date"
-                    value={formData.curso_terreno_agreste}
-                    onChange={handleInputChange}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-gray-700">Vehículos Asignados</label>
-                <div className="border rounded-md p-4 max-h-[200px] overflow-y-auto space-y-2 bg-gray-50">
-                  {vehiculos.length === 0 ? (
-                    <p className="text-sm text-gray-500 italic">No hay vehículos registrados en la flota.</p>
-                  ) : (
-                    vehiculos.map((v) => {
-                      const isChecked = formData.vehiculos_ids.includes(Number(v.id));
-                      return (
-                        <div 
-                          key={v.id} 
-                          className="flex items-center space-x-3 bg-white p-2.5 rounded border shadow-sm hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                          onClick={() => handleVehicleToggle(Number(v.id))}
-                        >
-                          <Checkbox 
-                            id={`veh-${v.id}`}
-                            checked={isChecked}
-                            onCheckedChange={(checked) => {
-                              // El onClick del div ya maneja el cambio, pero por accesibilidad:
-                              // Si el checkbox cambia por teclado o click directo
-                            }}
-                            className="pointer-events-none" // Para que el click del div sea el principal
-                          />
-                          <div className="flex justify-between w-full select-none">
-                            <span className="flex items-center gap-2 text-sm font-medium">
-                              <Truck size={14} className={isChecked ? "text-blue-600" : "text-gray-400"} />
-                              {v.marca} {v.modelo}
-                            </span>
-                            <span className={`font-mono text-sm font-bold ${isChecked ? "text-blue-700" : "text-gray-400"}`}>
-                              {v.placa}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                <p className="text-xs text-gray-400">Selecciona uno o varios vehículos de la flota para este conductor.</p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="bg-[#F97316] hover:bg-orange-600"
-                onClick={handleSaveDriver}
-                disabled={!formData.nombre || !formData.telefono}
-              >
-                {editingDriver ? 'Guardar Cambios' : 'Agregar Conductor'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                <Button className="bg-[#F97316] hover:bg-orange-600" onClick={handleSaveDriver} disabled={!formData.nombre || !formData.telefono}>
+                  {editingDriver ? 'Guardar Cambios' : 'Agregar Conductor'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -504,7 +386,7 @@ export default function Conductores() {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-gray-200">
-                <TableHead className="min-w-[150px]">Nombre</TableHead>
+                <TableHead>Nombre</TableHead>
                 <TableHead>C.C</TableHead>
                 <TableHead>Nacimiento</TableHead>
                 <TableHead>Teléfono</TableHead>
@@ -528,21 +410,21 @@ export default function Conductores() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={17} className="text-center py-20">
+                  <TableCell colSpan={19} className="text-center py-20">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-gray-500 font-medium">Cargando conductores...</p>
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : conductores.length === 0 ? (
+              ) : filteredConductores.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={17} className="text-center py-10 text-gray-400">
-                    No hay conductores registrados.
+                  <TableCell colSpan={19} className="text-center py-10 text-gray-400">
+                    {searchTerm ? 'No se encontraron conductores con ese término.' : 'No hay conductores registrados.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                conductores.map((conductor) => (
+                filteredConductores.map((conductor) => (
                   <TableRow key={conductor.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <TableCell className="font-semibold">{conductor.nombre}</TableCell>
                     <TableCell className="text-xs">{conductor.cedula || 'N/A'}</TableCell>
